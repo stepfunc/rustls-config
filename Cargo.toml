@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 rx509 = "^0.2"
-rustls = "^0.21"
+rustls = { version = "^0.21", features = ["dangerous_configuration"] }

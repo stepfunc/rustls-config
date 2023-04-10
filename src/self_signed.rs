@@ -1,5 +1,6 @@
 use rustls::CertificateError;
 
+/// Core verify that can be converted to a client or server cert verifier
 pub struct SelfSignedVerifier {
     // expected certificate
     expected_peer_cert: rustls::Certificate,
@@ -53,4 +54,8 @@ impl SelfSignedVerifier {
 
         Ok(())
     }
+}
+
+impl rustls::server::ClientCertVerifier for SelfSignedVerifier {
+
 }
