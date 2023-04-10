@@ -1,7 +1,17 @@
 use rustls::client::ServerCertVerified;
 use rustls::server::ClientCertVerified;
 use rustls::{Certificate, CertificateError, DistinguishedName, RootCertStore, ServerName};
+use rx509::der::ASNError;
 use std::time::SystemTime;
+
+/// Error type returned when creating a self-signed verifier
+#[derive(Debug)]
+pub enum Error {
+    /// Parsing error in rx509 crate
+    ASN(ASNError),
+    /// Rustls couldn't parse the cert
+    Tls(rustls::Error),
+}
 
 /// Verifier that can used as a client or server verifier based on a pre-shared peer certificate
 pub struct SelfSignedVerifier {
@@ -29,7 +39,7 @@ impl SelfSignedVerifier {
     /// This method performs a light parsing of the certificate using [rx509](https://crates.io/crates/rx509)
     /// to extract the Validity (not before, not after) time interval for the certificate so that
     /// can be later used during validation. An error is returned if the certificate cannot be parsed.
-    pub fn create(expected: Certificate) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn create(expected: Certificate) -> Result<Self, Error> {
         let parsed = rx509::x509::Certificate::parse(&expected.0)?;
 
         let validity = parsed.tbs_certificate.value.validity;
@@ -108,5 +118,17 @@ impl rustls::client::ServerCertVerifier for SelfSignedVerifier {
     ) -> Result<ServerCertVerified, rustls::Error> {
         self.verify_peer(end_entity, intermediates, now)?;
         Ok(ServerCertVerified::assertion())
+    }
+}
+
+impl From<ASNError> for Error {
+    fn from(err: ASNError) -> Self {
+        Self::ASN(err)
+    }
+}
+
+impl From<rustls::Error> for Error {
+    fn from(err: rustls::Error) -> Self {
+        Self::Tls(err)
     }
 }
