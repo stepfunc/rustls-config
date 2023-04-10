@@ -1,0 +1,8 @@
+[package]
+name = "sfio-rustls-util"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rx509 = "^0.2"
+rustls = "^0.21"
