@@ -4,7 +4,7 @@ use rustls::{Certificate, CertificateError, DistinguishedName, Error, ServerName
 use rx509::der::ASNError;
 use std::time::SystemTime;
 
-/// Core verify that can be converted to a client or server cert verifier
+/// Verifier that can used as a client or server verifier based on a pre-shared peer certificate
 pub struct SelfSignedVerifier {
     /// expected certificate
     expected_peer_cert: Certificate,
@@ -13,11 +13,11 @@ pub struct SelfSignedVerifier {
 }
 
 impl SelfSignedVerifier {
-    /// Create a verifier which can be be used by a rustls client or server
+    /// Create a verifier specifying the expected peer certificate.
     ///
-    /// This verifier expects the peer to send a certificate matching the one configured here, byte-for-byte.
-    ///
-    /// The only additional verification that occurs is that the time is checking against the validity range of the certificate.
+    /// This method performs a light parsing of the certificate using [rx509](https://crates.io/crates/rx509)
+    /// to extract the Validity (not before, not after) time interval for the certificate so that
+    /// can be later used during validation. An error is returned if the certificate cannot be parsed.
     pub fn create(expected: Certificate) -> Result<Self, impl std::error::Error> {
         let parsed = rx509::x509::Certificate::parse(&expected.0)?;
 
