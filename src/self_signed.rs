@@ -13,6 +13,17 @@ pub enum Error {
     Tls(rustls::Error),
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::ASN(x) => std::fmt::Display::fmt(x, f),
+            Error::Tls(x) => std::fmt::Display::fmt(x, f),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 /// Verifier that can used as a client or server verifier based on a pre-shared peer certificate
 pub struct SelfSignedVerifier {
     /// expected certificate
