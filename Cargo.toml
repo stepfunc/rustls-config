@@ -7,4 +7,5 @@ edition = "2021"
 rx509 = "^0.2"
 rustls = { version = "^0.21", features = ["dangerous_configuration"] }
 rustls-webpki = { version = "^0.100.1" }
+sfio-pem-util = { git = "https://github.com/stepfunc/pem-util.git" }
 

@@ -43,15 +43,40 @@ clippy::all
     bare_trait_objects
 )]
 
-mod client;
-mod name;
-mod self_signed;
-mod server;
+pub(crate) mod self_signed;
 
-pub use client::*;
+/// Client configurations
+pub mod client;
+/// Server configurations
+pub mod server;
+
+mod error;
+mod name;
+pub use error::*;
 pub use name::*;
-pub use self_signed::*;
-pub use server::*;
+
+/// Minimum protocol version allowed
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MinProtocolVersion {
+    /// Allow TLS 1.2 and 1.3
+    V1_2,
+    /// Allow TLS 1.3 only
+    V1_3,
+}
+
+impl MinProtocolVersion {
+    pub(crate) fn versions(self) -> &'static [&'static rustls::SupportedProtocolVersion] {
+        static MIN_TLS12_VERSIONS: &[&rustls::SupportedProtocolVersion] =
+            &[&rustls::version::TLS13, &rustls::version::TLS12];
+        static MIN_TLS13_VERSIONS: &[&rustls::SupportedProtocolVersion] =
+            &[&rustls::version::TLS13];
+
+        match self {
+            Self::V1_2 => MIN_TLS12_VERSIONS,
+            Self::V1_3 => MIN_TLS13_VERSIONS,
+        }
+    }
+}
 
 pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
     use webpki::Error::*;
@@ -69,4 +94,28 @@ pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
         }
         _ => rustls::CertificateError::Other(std::sync::Arc::new(error)).into(),
     }
+}
+
+pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::Certificate>, Error> {
+    let bytes = std::fs::read(path)?;
+    let certs = sfio_pem_util::read_certificates(bytes)?;
+    Ok(certs.into_iter().map(rustls::Certificate).collect())
+}
+
+pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::Certificate, Error> {
+    let bytes = std::fs::read(path)?;
+    let cert = sfio_pem_util::read_one_certificate(bytes)?;
+    Ok(rustls::Certificate(cert))
+}
+
+pub(crate) fn read_private_key(
+    path: &std::path::Path,
+    password: Option<&str>,
+) -> Result<rustls::PrivateKey, Error> {
+    let bytes = std::fs::read(path)?;
+    let key = match password {
+        Some(x) => sfio_pem_util::PrivateKey::decrypt_from_pem(bytes, x)?,
+        None => sfio_pem_util::PrivateKey::read_from_pem(bytes)?,
+    };
+    Ok(rustls::PrivateKey(key.bytes().to_vec()))
 }
