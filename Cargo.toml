@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+pem = { version = "2.0.0" }
+pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
 rx509 = "^0.2"
 rustls = { version = "^0.21", features = ["dangerous_configuration"] }
 rustls-webpki = { version = "^0.100.1" }
-sfio-pem-util = { git = "https://github.com/stepfunc/pem-util.git" }
+zeroize = "1.6.0"
 

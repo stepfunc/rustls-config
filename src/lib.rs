@@ -43,6 +43,7 @@ clippy::all
     bare_trait_objects
 )]
 
+pub(crate) mod pem;
 pub(crate) mod self_signed;
 
 /// Client configurations
@@ -98,13 +99,13 @@ pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
 
 pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::Certificate>, Error> {
     let bytes = std::fs::read(path)?;
-    let certs = sfio_pem_util::read_certificates(bytes)?;
+    let certs = pem::read_certificates(bytes)?;
     Ok(certs.into_iter().map(rustls::Certificate).collect())
 }
 
 pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::Certificate, Error> {
     let bytes = std::fs::read(path)?;
-    let cert = sfio_pem_util::read_one_certificate(bytes)?;
+    let cert = pem::read_one_certificate(bytes)?;
     Ok(rustls::Certificate(cert))
 }
 
@@ -114,8 +115,8 @@ pub(crate) fn read_private_key(
 ) -> Result<rustls::PrivateKey, Error> {
     let bytes = std::fs::read(path)?;
     let key = match password {
-        Some(x) => sfio_pem_util::PrivateKey::decrypt_from_pem(bytes, x)?,
-        None => sfio_pem_util::PrivateKey::read_from_pem(bytes)?,
+        Some(x) => pem::PrivateKey::decrypt_from_pem(bytes, x)?,
+        None => pem::PrivateKey::read_from_pem(bytes)?,
     };
-    Ok(rustls::PrivateKey(key.bytes().to_vec()))
+    Ok(rustls::PrivateKey(key.into_inner()))
 }

@@ -14,8 +14,8 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<sfio_pem_util::Error> for Error {
-    fn from(err: sfio_pem_util::Error) -> Self {
+impl From<crate::pem::Error> for Error {
+    fn from(err: crate::pem::Error) -> Self {
         Self {
             details: Details::Pem(err),
         }
@@ -43,7 +43,7 @@ enum Details {
     /// Error reading PEM data from file
     Io(std::io::Error),
     /// Bad PEM file
-    Pem(sfio_pem_util::Error),
+    Pem(crate::pem::Error),
     /// RX509 error decoding certificate
     X509(rx509::der::ASNError),
     /// Error returned by Rustls
