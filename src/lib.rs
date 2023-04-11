@@ -43,13 +43,13 @@ clippy::all
     bare_trait_objects
 )]
 
-pub(crate) mod name;
-
 mod client;
+mod name;
 mod self_signed;
 mod server;
 
 pub use client::*;
+pub use name::*;
 pub use self_signed::*;
 pub use server::*;
 

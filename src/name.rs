@@ -11,12 +11,16 @@ pub struct NameVerifier {
 }
 
 impl NameVerifier {
+    /// Name verifier that doesn't perform an verification at all
     pub fn any() -> Self {
         Self {
             inner: VerifierType::Any,
         }
     }
 
+    /// Name verifier that requires the specified name (DNS or IP) to be exactly as specified
+    ///
+    /// The DNS name may be matched against a Common Name
     pub fn equal_to(name: String) -> Self {
         Self {
             inner: VerifierType::Strict(name),
