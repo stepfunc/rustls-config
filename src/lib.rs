@@ -43,5 +43,30 @@ clippy::all
     bare_trait_objects
 )]
 
+pub(crate) mod name;
+
+mod client;
 mod self_signed;
+mod server;
+
+pub use client::*;
 pub use self_signed::*;
+pub use server::*;
+
+pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
+    use webpki::Error::*;
+    match error {
+        BadDer | BadDerTime => rustls::CertificateError::BadEncoding.into(),
+        CertNotValidYet => rustls::CertificateError::NotValidYet.into(),
+        CertExpired | InvalidCertValidity => rustls::CertificateError::Expired.into(),
+        UnknownIssuer => rustls::CertificateError::UnknownIssuer.into(),
+        CertNotValidForName => rustls::CertificateError::NotValidForName.into(),
+
+        InvalidSignatureForPublicKey
+        | UnsupportedSignatureAlgorithm
+        | UnsupportedSignatureAlgorithmForPublicKey => {
+            rustls::CertificateError::BadSignature.into()
+        }
+        _ => rustls::CertificateError::Other(std::sync::Arc::new(error)).into(),
+    }
+}
