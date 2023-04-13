@@ -1,6 +1,6 @@
 [package]
 name = "sfio-rustls-config"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "Configuration routines for Rustls used in Step Function I/O's libraries"
@@ -14,5 +14,3 @@ pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
 rx509 = "^0.2"
 rustls = { version = "^0.21", features = ["dangerous_configuration"] }
 rustls-webpki = { version = "^0.100.1" }
-zeroize = "1.6.0"
-
