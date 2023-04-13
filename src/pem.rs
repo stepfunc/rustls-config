@@ -88,8 +88,7 @@ impl PrivateKey {
     /// PEM tags that are supported for encrypted private keys
     const ALLOWED_ENCRYPTED_KEY_TAGS: &'static [&'static str] = &["ENCRYPTED PRIVATE KEY"];
     /// PEM tags that are supported for plain-text private keys
-    const ALLOWED_PLAINTEXT_KEY_TAGS: &'static [&'static str] =
-        &["PRIVATE KEY", "BEGIN RSA PRIVATE KEY"];
+    const ALLOWED_PLAINTEXT_KEY_TAGS: &'static [&'static str] = &["PRIVATE KEY", "RSA PRIVATE KEY"];
 
     /// The underlying vector of bytes
     pub(crate) fn into_inner(self) -> Vec<u8> {
