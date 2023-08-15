@@ -59,7 +59,7 @@ fn build_config(
         .with_safe_default_kx_groups()
         .with_protocol_versions(min_version.versions())?
         .with_custom_certificate_verifier(verifier)
-        .with_single_cert(local_certs, private_key)?;
+        .with_client_auth_cert(local_certs, private_key)?;
 
     Ok(config)
 }
