@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
+use webpki::KeyUsage;
 
 use crate::name::NameVerifier;
 use crate::{Error, MinProtocolVersion};
@@ -108,13 +109,14 @@ impl rustls::client::ServerCertVerifier for ServerCertVerifier {
         let webpki_now =
             webpki::Time::try_from(now).map_err(|_| rustls::Error::FailedToGetCurrentTime)?;
 
-        cert.verify_is_valid_tls_server_cert(
+        cert.verify_for_usage(
             SUPPORTED_SIG_ALGS,
-            &webpki::TlsServerTrustAnchors(&trustroots),
+            &trustroots,
             &chain,
             webpki_now,
-        )
-        .map_err(super::pki_error)?;
+            KeyUsage::server_auth(),
+            &[]
+        ).map_err(super::pki_error)?;
 
         // Check DNS name (including in the Common Name)
         self.name.verify(end_entity)?;
