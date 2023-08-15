@@ -9,7 +9,7 @@ readme = "README.md"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 
 [dependencies]
-pem = { version = "2.0.0" }
+pem = { version = "^3.0" }
 pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
 rx509 = "^0.2"
 rustls = { version = "^0.21", features = ["dangerous_configuration"] }
