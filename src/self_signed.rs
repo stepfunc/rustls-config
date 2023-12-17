@@ -1,13 +1,14 @@
-use rustls::client::ServerCertVerified;
-use rustls::server::ClientCertVerified;
-use rustls::{Certificate, CertificateError, DistinguishedName, RootCertStore, ServerName};
+use rustls::client::danger::ServerCertVerified;
+use rustls::server::danger::ClientCertVerified;
+use rustls::{CertificateError, DistinguishedName, RootCertStore};
+use rustls::pki_types::{CertificateDer, ServerName};
 
 use std::time::SystemTime;
 
 /// Verifier that can used as a client or server verifier based on a pre-shared peer certificate
 pub(crate) struct SelfSignedVerifier {
     /// expected certificate
-    expected_peer_cert: Certificate,
+    expected_peer_cert: CertificateDer<'static>,
     /// pre-parsed validity
     validity: rx509::x509::Validity,
 
@@ -15,9 +16,9 @@ pub(crate) struct SelfSignedVerifier {
 }
 
 impl SelfSignedVerifier {
-    fn subjects(expected: &Certificate) -> Result<Vec<DistinguishedName>, rustls::Error> {
+    fn subjects(expected: &CertificateDer) -> Result<Vec<DistinguishedName>, rustls::Error> {
         let mut store = RootCertStore::empty();
-        store.add(expected)?;
+        store.add(expected.to_owned())?;
         Ok(store
             .roots
             .into_iter()
@@ -30,8 +31,8 @@ impl SelfSignedVerifier {
     /// This method performs a light parsing of the certificate using [rx509](https://crates.io/crates/rx509)
     /// to extract the Validity (not before, not after) time interval for the certificate so that
     /// can be later used during validation. An error is returned if the certificate cannot be parsed.
-    pub(crate) fn create(expected: Certificate) -> Result<Self, crate::Error> {
-        let parsed = rx509::x509::Certificate::parse(&expected.0)?;
+    pub(crate) fn create(expected: CertificateDer) -> Result<Self, crate::Error> {
+        let parsed = rx509::x509::Certificate::parse(expected.as_ref())?;
 
         let validity = parsed.tbs_certificate.value.validity;
 

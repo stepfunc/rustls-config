@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::DistinguishedName;
 
 use crate::name::NameVerifier;

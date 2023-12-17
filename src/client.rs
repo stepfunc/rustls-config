@@ -1,5 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
+use rustls::client::danger::HandshakeSignatureValid;
+use rustls::client::ServerCertVerifierBuilder;
+use rustls::{DigitallySignedStruct, SignatureScheme};
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use webpki::KeyUsage;
 
 use crate::name::NameVerifier;
@@ -50,9 +54,9 @@ pub fn authority(
 
 fn build_config(
     min_version: MinProtocolVersion,
-    local_certs: Vec<rustls::Certificate>,
-    private_key: rustls::PrivateKey,
-    verifier: Arc<dyn rustls::client::ServerCertVerifier>,
+    local_certs: Vec<CertificateDer>,
+    private_key: rustls::pki_types::PrivateKeyDer,
+    verifier: Arc<dyn rustls::client::danger::ServerCertVerifier>,
 ) -> Result<rustls::ClientConfig, rustls::Error> {
     let config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
@@ -70,6 +74,7 @@ fn build_config(
 /// uses webpki for the heavy lifting to verify the chain.
 ///
 /// It can also verify the name in the server cert from the Common Name as well.
+#[derive(Debug)]
 struct ServerCertVerifier {
     roots: Vec<OwnedTrustAnchor>,
     name: NameVerifier,
@@ -77,33 +82,34 @@ struct ServerCertVerifier {
 
 impl ServerCertVerifier {
     /// Create the verifier from some root anchors and a name verifier
-    fn new(anchors: Vec<rustls::Certificate>, name: NameVerifier) -> Result<Self, rustls::Error> {
+    fn new(anchors: Vec<CertificateDer>, name: NameVerifier) -> Result<Self, rustls::Error> {
         let roots = Self::trust_anchors(anchors).map_err(crate::pki_error)?;
         Ok(Self { roots, name })
     }
 
     fn trust_anchors(
-        certs: Vec<rustls::Certificate>,
+        certs: Vec<CertificateDer>,
     ) -> Result<Vec<OwnedTrustAnchor>, webpki::Error> {
         certs
             .iter()
-            .map(|x| OwnedTrustAnchor::try_from_cert_der(x.0.as_slice()))
+            .map(|x| OwnedTrustAnchor::try_from_cert_der(x.as_ref()))
             .collect()
     }
 }
 
-impl rustls::client::ServerCertVerifier for ServerCertVerifier {
+impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
     fn verify_server_cert(
         &self,
-        end_entity: &rustls::Certificate,
-        intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+
         // Note: this code is taken from `WebPkiVerifier` in the `verifier` module of `rustls`
 
+        /*
         // Verify trust chain using webpki
         let (cert, chain, trustroots) = prepare(end_entity, intermediates, &self.roots)?;
         let webpki_now =
@@ -120,8 +126,21 @@ impl rustls::client::ServerCertVerifier for ServerCertVerifier {
 
         // Check DNS name (including in the Common Name)
         self.name.verify(end_entity)?;
+        */
 
-        Ok(rustls::client::ServerCertVerified::assertion())
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
+        todo!()
+    }
+
+    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
+        todo!()
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        todo!()
     }
 }
 

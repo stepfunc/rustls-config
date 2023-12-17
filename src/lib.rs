@@ -53,6 +53,8 @@ pub mod server;
 
 mod error;
 mod name;
+
+use rustls::OtherError;
 pub use error::*;
 pub use name::*;
 
@@ -93,20 +95,20 @@ pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
         | UnsupportedSignatureAlgorithmForPublicKey => {
             rustls::CertificateError::BadSignature.into()
         }
-        _ => rustls::CertificateError::Other(std::sync::Arc::new(error)).into(),
+        _ => rustls::CertificateError::Other(OtherError(std::sync::Arc::new(error))).into(),
     }
 }
 
-pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::Certificate>, Error> {
+pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::pki_types::CertificateDer>, Error> {
     let bytes = std::fs::read(path)?;
     let certs = pem::read_certificates(bytes)?;
-    Ok(certs.into_iter().map(rustls::Certificate).collect())
+    Ok(certs.into_iter().map(|x| x.into()).collect())
 }
 
-pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::Certificate, Error> {
+pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::pki_types::CertificateDer, Error> {
     let bytes = std::fs::read(path)?;
     let cert = pem::read_one_certificate(bytes)?;
-    Ok(rustls::Certificate(cert))
+    Ok(cert.into())
 }
 
 pub(crate) fn read_private_key(
