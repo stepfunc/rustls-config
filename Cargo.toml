@@ -1,10 +1,10 @@
 [package]
 name = "sfio-rustls-config"
-version = "0.1.2"
+version = "0.2.0"
 license = "MIT OR Apache-2.0"
 edition = "2021"
-description = "Configuration routines for Rustls used in Step Function I/O's libraries"
-repository = "https://github.com/stepfunc/scursor"
+description = "Configuration routines for Rustls used in libraries from Step Function I/O"
+repository = "https://github.com/stepfunc/rustls-config"
 readme = "README.md"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 
