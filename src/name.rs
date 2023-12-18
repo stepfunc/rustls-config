@@ -36,7 +36,7 @@ impl NameVerifier {
     }
 }
 
-fn verify_dns_name(cert: &rustls::pki_types::CertificateDer, server_name: &str) -> Result<(), rustls::Error> {
+fn verify_dns_name(_cert: &rustls::pki_types::CertificateDer, _server_name: &str) -> Result<(), rustls::Error> {
     /* TODO
 
     // Extract the DNS name

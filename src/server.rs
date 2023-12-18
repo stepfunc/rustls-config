@@ -58,7 +58,7 @@ pub fn authority(
 }
 
 fn build_config(
-    min_tls_version: MinProtocolVersion,
+    _min_tls_version: MinProtocolVersion,
     local_certs: Vec<CertificateDer<'static>>,
     private_key: rustls::pki_types::PrivateKeyDer<'static>,
     verifier: Arc<dyn rustls::server::danger::ClientCertVerifier>,
@@ -112,14 +112,14 @@ impl rustls::server::danger::ClientCertVerifier for ClientCertVerifier {
     }
 
     fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        todo!()
+        rustls::crypto::verify_tls12_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
     }
 
     fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        todo!()
+        rustls::crypto::verify_tls13_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        todo!()
+        rustls::crypto::ring::default_provider().signature_verification_algorithms.supported_schemes()
     }
 }
