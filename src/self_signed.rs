@@ -1,10 +1,10 @@
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified};
-use rustls::server::danger::ClientCertVerified;
-use rustls::{CertificateError, DigitallySignedStruct, DistinguishedName, Error, SignatureScheme};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use webpki::types::TrustAnchor;
-use crate::pki_error;
-
+use rustls::server::danger::ClientCertVerified;
+use rustls::{
+    CertificateError, DigitallySignedStruct, DistinguishedName, Error, RootCertStore,
+    SignatureScheme,
+};
 
 /// Verifier that can used as a client or server verifier based on a pre-shared peer certificate
 #[derive(Debug)]
@@ -13,27 +13,11 @@ pub(crate) struct SelfSignedVerifier {
     expected_peer_cert: CertificateDer<'static>,
     /// pre-parsed validity
     validity: rx509::x509::Validity,
-
-    anchor: TrustAnchor<'static>,
-
-    //subjects: Vec<DistinguishedName>,
+    /// subjects
+    subjects: Vec<DistinguishedName>,
 }
 
 impl SelfSignedVerifier {
-
-    /*
-    fn subjects(expected: &CertificateDer) -> Result<Vec<DistinguishedName>, Error> {
-        let mut store = RootCertStore::empty();
-        store.add(expected.to_owned())?;
-        Ok(store
-            .roots
-            .into_iter()
-            .map(|x| x.subject.clone())
-            .collect())
-    }
-
-     */
-
     /// Create a verifier specifying the expected peer certificate.
     ///
     /// This method performs a light parsing of the certificate using [rx509](https://crates.io/crates/rx509)
@@ -44,12 +28,14 @@ impl SelfSignedVerifier {
 
         let validity = parsed.tbs_certificate.value.validity;
 
-        let anchor = webpki::anchor_from_trusted_cert(&expected).map_err(pki_error)?.to_owned();
+        let mut root_cert_store = RootCertStore::empty();
+
+        root_cert_store.add(expected.clone())?;
 
         Ok(Self {
             expected_peer_cert: expected,
             validity,
-            anchor
+            subjects: root_cert_store.subjects(),
         })
     }
 
@@ -70,9 +56,7 @@ impl SelfSignedVerifier {
 
         // Check that presented certificate matches byte-for-byte the expected certificate
         if end_entity != &self.expected_peer_cert {
-            return Err(Error::InvalidCertificate(
-                CertificateError::UnknownIssuer,
-            ));
+            return Err(Error::InvalidCertificate(CertificateError::UnknownIssuer));
         }
 
         let now = rx509::der::UtcTime::from_seconds_since_epoch(now.as_secs());
@@ -81,18 +65,15 @@ impl SelfSignedVerifier {
             return Err(Error::InvalidCertificate(CertificateError::Expired));
         }
 
-        // We do not validate DNS name. Providing the exact same certificate is sufficient.
+        // We do not validate DNS name. Checking the full certificate for equality is more powerful
 
         Ok(())
     }
 }
 
 impl rustls::server::danger::ClientCertVerifier for SelfSignedVerifier {
-
     fn root_hint_subjects(&self) -> &[DistinguishedName] {
-
-        //self.subjects.as_slice()
-        &[] // TODO - this might not be necessary
+        self.subjects.as_slice()
     }
 
     fn verify_client_cert(
@@ -105,16 +86,38 @@ impl rustls::server::danger::ClientCertVerifier for SelfSignedVerifier {
         Ok(ClientCertVerified::assertion())
     }
 
-    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
-        rustls::crypto::verify_tls12_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
     }
 
-    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
-        rustls::crypto::verify_tls13_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        rustls::crypto::ring::default_provider().signature_verification_algorithms.supported_schemes()
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
@@ -131,15 +134,37 @@ impl rustls::client::danger::ServerCertVerifier for SelfSignedVerifier {
         Ok(ServerCertVerified::assertion())
     }
 
-    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
-        rustls::crypto::verify_tls12_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
     }
 
-    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
-        rustls::crypto::verify_tls13_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &rustls::crypto::ring::default_provider().signature_verification_algorithms,
+        )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        rustls::crypto::ring::default_provider().signature_verification_algorithms.supported_schemes()
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }

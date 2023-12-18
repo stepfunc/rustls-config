@@ -53,10 +53,9 @@ pub mod server;
 mod error;
 mod name;
 
-use rustls::OtherError;
-use webpki::types::PrivateKeyDer;
 pub use error::*;
 pub use name::*;
+use webpki::types::PrivateKeyDer;
 
 /// Minimum protocol version allowed
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -81,6 +80,7 @@ impl MinProtocolVersion {
     }
 }
 
+/*
 pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
     use webpki::Error::*;
     match error {
@@ -98,14 +98,19 @@ pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
         _ => rustls::CertificateError::Other(OtherError(std::sync::Arc::new(error))).into(),
     }
 }
+ */
 
-pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, Error> {
+pub(crate) fn read_certificates(
+    path: &std::path::Path,
+) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, Error> {
     let bytes = std::fs::read(path)?;
     let certs = pem::read_certificates(bytes)?;
     Ok(certs.into_iter().map(|x| x.into()).collect())
 }
 
-pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::pki_types::CertificateDer<'static>, Error> {
+pub(crate) fn read_one_cert(
+    path: &std::path::Path,
+) -> Result<rustls::pki_types::CertificateDer<'static>, Error> {
     let bytes = std::fs::read(path)?;
     let cert = pem::read_one_certificate(bytes)?;
     Ok(cert.into())

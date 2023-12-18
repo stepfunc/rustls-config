@@ -1,13 +1,13 @@
+use rustls::client::danger::HandshakeSignatureValid;
+use rustls::pki_types::{CertificateDer, UnixTime};
+use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
+use rustls::server::WebPkiClientVerifier;
+use rustls::{DigitallySignedStruct, DistinguishedName, SignatureScheme};
 use std::path::Path;
 use std::sync::Arc;
+use webpki::types::ServerName;
 
-use rustls::{DigitallySignedStruct, DistinguishedName, SignatureScheme};
-use rustls::client::danger::HandshakeSignatureValid;
-use rustls::server::WebPkiClientVerifier;
-use rustls::pki_types::{CertificateDer, UnixTime};
-
-use crate::name::NameVerifier;
-use crate::{Error, MinProtocolVersion};
+use crate::{ClientNameVerification, Error, MinProtocolVersion};
 
 /// Create a client configuration based on a verifier that allows self-signed certificates
 pub fn self_signed(
@@ -22,12 +22,9 @@ pub fn self_signed(
     let private_key = crate::read_private_key(private_key_path, private_key_password)?;
     let verifier = crate::self_signed::SelfSignedVerifier::create(peer_cert)?;
 
-    let config = build_config(
-        min_version,
-        vec![local_cert],
-        private_key,
-        Arc::new(verifier),
-    )?;
+    let config = rustls::ServerConfig::builder_with_protocol_versions(min_version.versions())
+        .with_client_cert_verifier(Arc::new(verifier))
+        .with_single_cert(vec![local_cert], private_key)?;
 
     Ok(config)
 }
@@ -35,14 +32,14 @@ pub fn self_signed(
 /// Create a client configuration based on a chain verifier with custom name verification
 pub fn authority(
     min_version: MinProtocolVersion,
-    name_verifier: NameVerifier,
+    name_verification: ClientNameVerification,
     peer_cert_path: &Path,
     local_cert_path: &Path,
     private_key_path: &Path,
     private_key_password: Option<&str>,
 ) -> Result<rustls::ServerConfig, Error> {
     let peer_certs = crate::read_certificates(peer_cert_path)?;
-    let local_certs = crate::read_certificates(local_cert_path)?;
+    let local_cert_chain = crate::read_certificates(local_cert_path)?;
     let private_key = crate::read_private_key(private_key_path, private_key_password)?;
 
     let mut roots = rustls::RootCertStore::empty();
@@ -50,49 +47,44 @@ pub fn authority(
         roots.add(cert)?;
     }
 
-    let verifier = ClientCertVerifier::new(roots, name_verifier);
+    let verifier = WebPkiClientVerifier::builder(roots.into()).build()?;
 
-    let config = build_config(min_version, local_certs, private_key, Arc::new(verifier))?;
+    let verifier = match name_verification {
+        // the normal WebPKI client verifier doesn't do any name checking so we can just use it
+        ClientNameVerification::None => verifier,
 
-    Ok(config)
-}
+        ClientNameVerification::Verify(name) => {
+            let verifier = ClientNameVerifier {
+                inner: verifier,
+                name,
+            };
 
-fn build_config(
-    _min_tls_version: MinProtocolVersion,
-    local_certs: Vec<CertificateDer<'static>>,
-    private_key: rustls::pki_types::PrivateKeyDer<'static>,
-    verifier: Arc<dyn rustls::server::danger::ClientCertVerifier>,
-) -> Result<rustls::ServerConfig, rustls::Error> {
-    let config = rustls::ServerConfig::builder()
-        //.with_protocol_versions(min_tls_version.versions())? TODO - set protocol versions
+            Arc::new(verifier)
+        }
+    };
+
+    let config = rustls::ServerConfig::builder_with_protocol_versions(min_version.versions())
         .with_client_cert_verifier(verifier)
-        .with_single_cert(local_certs, private_key)?;
+        .with_single_cert(local_cert_chain, private_key)?;
 
     Ok(config)
 }
 
-/// Verifier used by the server to check the client's certificate chain
-///
-/// This verifier is similar to the default verifier in rustls as it
-/// uses webpki for the heavy lifting to verify the chain.
-///
-/// It can also verify the name in the server cert from the Common Name as well.
 #[derive(Debug)]
-struct ClientCertVerifier {
-    inner: Arc<dyn rustls::server::danger::ClientCertVerifier>,
-    verifier: NameVerifier,
+struct ClientNameVerifier {
+    inner: Arc<dyn ClientCertVerifier>,
+    name: ServerName<'static>,
 }
 
-impl ClientCertVerifier {
-    /// Create the verifier from the root store and a ['crate::NameVerifier`]
-    fn new(roots: rustls::RootCertStore, verifier: NameVerifier) -> Self {
-        // TODO - remove the unwrap and bubble up error?
-        let inner = WebPkiClientVerifier::builder(Arc::new(roots)).build().unwrap();
-        Self { inner, verifier }
+impl ClientCertVerifier for ClientNameVerifier {
+    fn offer_client_auth(&self) -> bool {
+        self.inner.offer_client_auth()
     }
-}
 
-impl rustls::server::danger::ClientCertVerifier for ClientCertVerifier {
+    fn client_auth_mandatory(&self) -> bool {
+        self.inner.client_auth_mandatory()
+    }
+
     fn root_hint_subjects(&self) -> &[DistinguishedName] {
         self.inner.root_hint_subjects()
     }
@@ -102,24 +94,41 @@ impl rustls::server::danger::ClientCertVerifier for ClientCertVerifier {
         end_entity: &CertificateDer<'_>,
         intermediates: &[CertificateDer<'_>],
         now: UnixTime,
-    ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error> {
-        self.inner
+    ) -> Result<ClientCertVerified, rustls::Error> {
+        let res = self
+            .inner
             .verify_client_cert(end_entity, intermediates, now)?;
 
-        self.verifier.verify(end_entity)?;
+        // now do the additional name checking
+        let end_entity_cert = webpki::EndEntityCert::try_from(end_entity)
+            .map_err(|err| rustls::Error::General(err.to_string()))?;
 
-        Ok(rustls::server::danger::ClientCertVerified::assertion())
+        end_entity_cert
+            .verify_is_valid_for_subject_name(&self.name)
+            .map_err(|err| rustls::Error::General(err.to_string()))?;
+
+        Ok(res)
     }
 
-    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls12_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.inner.verify_tls12_signature(message, cert, dss)
     }
 
-    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls13_signature(message, cert, dss, &rustls::crypto::ring::default_provider().signature_verification_algorithms)
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.inner.verify_tls13_signature(message, cert, dss)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        rustls::crypto::ring::default_provider().signature_verification_algorithms.supported_schemes()
+        self.inner.supported_verify_schemes()
     }
 }

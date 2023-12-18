@@ -87,7 +87,6 @@ pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, 
 pub(crate) struct PrivateKey(PrivateKeyDer<'static>);
 
 impl PrivateKey {
-
     const ENCRYPTED_PRIVATE_KEY: &'static str = "ENCRYPTED PRIVATE KEY";
     const PRIVATE_KEY: &'static str = "PRIVATE KEY";
     const RSA_PRIVATE_KEY: &'static str = "RSA PRIVATE KEY";
@@ -113,13 +112,17 @@ impl PrivateKey {
                     if key.is_some() {
                         return Err(ErrorDetails::MoreThanOnePrivateKey.into());
                     }
-                    key = Some(Self(PrivateKeyDer::Pkcs8(section.contents().to_vec().into())))
+                    key = Some(Self(PrivateKeyDer::Pkcs8(
+                        section.contents().to_vec().into(),
+                    )))
                 }
                 Self::RSA_PRIVATE_KEY => {
                     if key.is_some() {
                         return Err(ErrorDetails::MoreThanOnePrivateKey.into());
                     }
-                    key = Some(Self(PrivateKeyDer::Pkcs1(section.contents().to_vec().into())))
+                    key = Some(Self(PrivateKeyDer::Pkcs1(
+                        section.contents().to_vec().into(),
+                    )))
                 }
                 _ => {}
             }
@@ -127,7 +130,7 @@ impl PrivateKey {
 
         match key.take() {
             None => Err(ErrorDetails::NoPrivateKey.into()),
-            Some(k) => Ok(k)
+            Some(k) => Ok(k),
         }
     }
 
@@ -141,23 +144,20 @@ impl PrivateKey {
     ) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
 
-        let mut key: Option<Vec<u8>> = None;
+        let mut encrypted: Option<Vec<u8>> = None;
 
         for section in sections {
-            match section.tag() {
-                Self::ENCRYPTED_PRIVATE_KEY => {
-                    if key.is_some() {
-                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
-                    }
-                    key = Some(section.contents().to_vec())
+            if section.tag() == Self::ENCRYPTED_PRIVATE_KEY {
+                if encrypted.is_some() {
+                    return Err(ErrorDetails::MoreThanOnePrivateKey.into());
                 }
-                _ => {}
+                encrypted = Some(section.contents().to_vec())
             }
         }
 
-        let encrypted = match key.take() {
+        let encrypted = match encrypted.take() {
             None => return Err(ErrorDetails::NoPrivateKey.into()),
-            Some(key) => key,
+            Some(x) => x,
         };
 
         let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(encrypted.as_slice())?;
@@ -192,6 +192,7 @@ impl From<ErrorDetails> for Error {
 #[cfg(test)]
 mod test {
     use super::PrivateKey;
+    use rustls::pki_types::PrivateKeyDer;
 
     const TEST_KEY: &str = r#"
 -----BEGIN ENCRYPTED PRIVATE KEY-----
@@ -289,11 +290,12 @@ cr+jfC1zzDLXwxa69QcwOcFGkxtsl9QPToviY4+5PcjU5+ioaA7Hw14=
         let key = PrivateKey::decrypt_from_pem(TEST_KEY, "foobar").unwrap();
 
         let decrypted = pem::parse(DECYPTED_KEY).unwrap();
-        assert_eq!(key.into_inner().as_slice(), decrypted.contents());
+        assert_eq!(key.into_inner().secret_der(), decrypted.contents());
     }
 
     #[test]
     fn can_read_pkcs1_key() {
-        PrivateKey::read_from_pem(RSA_PRIVATE_KEY).unwrap();
+        let key = PrivateKey::read_from_pem(RSA_PRIVATE_KEY).unwrap();
+        assert!(std::matches!(key.into_inner(), PrivateKeyDer::Pkcs1(_)));
     }
 }
