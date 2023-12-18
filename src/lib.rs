@@ -55,7 +55,6 @@ mod name;
 
 pub use error::*;
 pub use name::*;
-use webpki::types::PrivateKeyDer;
 
 /// Minimum protocol version allowed
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -78,53 +77,4 @@ impl MinProtocolVersion {
             Self::V1_3 => MIN_TLS13_VERSIONS,
         }
     }
-}
-
-/*
-pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
-    use webpki::Error::*;
-    match error {
-        BadDer | BadDerTime => rustls::CertificateError::BadEncoding.into(),
-        CertNotValidYet => rustls::CertificateError::NotValidYet.into(),
-        CertExpired | InvalidCertValidity => rustls::CertificateError::Expired.into(),
-        UnknownIssuer => rustls::CertificateError::UnknownIssuer.into(),
-        CertNotValidForName => rustls::CertificateError::NotValidForName.into(),
-
-        InvalidSignatureForPublicKey
-        | UnsupportedSignatureAlgorithm
-        | UnsupportedSignatureAlgorithmForPublicKey => {
-            rustls::CertificateError::BadSignature.into()
-        }
-        _ => rustls::CertificateError::Other(OtherError(std::sync::Arc::new(error))).into(),
-    }
-}
- */
-
-pub(crate) fn read_certificates(
-    path: &std::path::Path,
-) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, Error> {
-    let bytes = std::fs::read(path)?;
-    let certs = pem::read_certificates(bytes)?;
-    Ok(certs.into_iter().map(|x| x.into()).collect())
-}
-
-pub(crate) fn read_one_cert(
-    path: &std::path::Path,
-) -> Result<rustls::pki_types::CertificateDer<'static>, Error> {
-    let bytes = std::fs::read(path)?;
-    let cert = pem::read_one_certificate(bytes)?;
-    Ok(cert.into())
-}
-
-pub(crate) fn read_private_key(
-    path: &std::path::Path,
-    password: Option<&str>,
-) -> Result<PrivateKeyDer<'static>, Error> {
-    let bytes = std::fs::read(path)?;
-    let key = match password {
-        Some(x) => pem::PrivateKey::decrypt_from_pem(bytes, x)?,
-        None => pem::PrivateKey::read_from_pem(bytes)?,
-    };
-
-    Ok(key.into_inner())
 }

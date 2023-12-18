@@ -1,5 +1,34 @@
 use webpki::types::PrivateKeyDer;
 
+pub(crate) fn read_certificates(
+    path: &std::path::Path,
+) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let certs = read_certificates_from_bytes(bytes)?;
+    Ok(certs.into_iter().map(|x| x.into()).collect())
+}
+
+pub(crate) fn read_one_cert(
+    path: &std::path::Path,
+) -> Result<rustls::pki_types::CertificateDer<'static>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let cert = read_one_certificate_from_bytes(bytes)?;
+    Ok(cert.into())
+}
+
+pub(crate) fn read_private_key(
+    path: &std::path::Path,
+    password: Option<&str>,
+) -> Result<PrivateKeyDer<'static>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let key = match password {
+        Some(x) => PrivateKey::decrypt_from_pem(bytes, x)?,
+        None => PrivateKey::read_from_pem(bytes)?,
+    };
+
+    Ok(key.into_inner())
+}
+
 /// Error type used by the library that implements [`std::error::Error`]
 #[derive(Debug)]
 pub(crate) struct Error {
@@ -45,7 +74,7 @@ enum ErrorDetails {
 }
 
 /// Read at least 1 certificate from a PEM file
-pub(crate) fn read_certificates<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>, Error> {
+fn read_certificates_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>, Error> {
     let entries: Vec<pem::Pem> = pem::parse_many(bytes)?;
 
     let certs: Vec<Vec<u8>> = entries
@@ -68,8 +97,8 @@ pub(crate) fn read_certificates<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>
 
 /// Read a single certificate from the PEM file. If none or more than 1 is present, an error is
 /// returned
-pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, Error> {
-    let mut certs = read_certificates(bytes)?.into_iter();
+fn read_one_certificate_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, Error> {
+    let mut certs = read_certificates_from_bytes(bytes)?.into_iter();
 
     let first = match certs.next() {
         Some(x) => x,
@@ -84,7 +113,7 @@ pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, 
 }
 
 /// Private key read from a plaintext or encrypted PEM file
-pub(crate) struct PrivateKey(PrivateKeyDer<'static>);
+struct PrivateKey(PrivateKeyDer<'static>);
 
 impl PrivateKey {
     const ENCRYPTED_PRIVATE_KEY: &'static str = "ENCRYPTED PRIVATE KEY";
@@ -92,7 +121,7 @@ impl PrivateKey {
     const RSA_PRIVATE_KEY: &'static str = "RSA PRIVATE KEY";
 
     /// The underlying rustls type
-    pub(crate) fn into_inner(self) -> PrivateKeyDer<'static> {
+    fn into_inner(self) -> PrivateKeyDer<'static> {
         self.0
     }
 
@@ -101,7 +130,7 @@ impl PrivateKey {
     /// PEM sections.
     ///
     /// This method ensures that only 1 private key file is present in a possibly multi-section PEM file
-    pub(crate) fn read_from_pem<B: AsRef<[u8]>>(bytes: B) -> Result<Self, Error> {
+    fn read_from_pem<B: AsRef<[u8]>>(bytes: B) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
 
         let mut key: Option<Self> = None;
@@ -138,7 +167,7 @@ impl PrivateKey {
     /// with 'ENCRYPTED PRIVATE KEY' with a PKCS #8 encrypted private key.
     ///
     /// This method ensures that only 1 private key file is present in a possibly multi-section PEM file
-    pub(crate) fn decrypt_from_pem<B: AsRef<[u8]>, S: AsRef<[u8]>>(
+    fn decrypt_from_pem<B: AsRef<[u8]>, S: AsRef<[u8]>>(
         bytes: B,
         password: S,
     ) -> Result<Self, Error> {

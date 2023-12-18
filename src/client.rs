@@ -16,9 +16,9 @@ pub fn self_signed(
     private_key_path: &Path,
     private_key_password: Option<&str>,
 ) -> Result<rustls::ClientConfig, Error> {
-    let peer_cert = crate::read_one_cert(peer_cert_path)?;
-    let client_cert = crate::read_one_cert(local_cert_path)?;
-    let private_key = crate::read_private_key(private_key_path, private_key_password)?;
+    let peer_cert = crate::pem::read_one_cert(peer_cert_path)?;
+    let client_cert = crate::pem::read_one_cert(local_cert_path)?;
+    let private_key = crate::pem::read_private_key(private_key_path, private_key_password)?;
     let verifier = crate::self_signed::SelfSignedVerifier::create(peer_cert)?;
 
     let config = rustls::ClientConfig::builder_with_protocol_versions(min_version.versions())
@@ -38,9 +38,9 @@ pub fn authority(
     private_key_path: &Path,
     private_key_password: Option<&str>,
 ) -> Result<rustls::ClientConfig, Error> {
-    let root_certs = crate::read_certificates(root_cert_path)?;
-    let cert_chain = crate::read_certificates(local_cert_path)?;
-    let private_key = crate::read_private_key(private_key_path, private_key_password)?;
+    let root_certs = crate::pem::read_certificates(root_cert_path)?;
+    let cert_chain = crate::pem::read_certificates(local_cert_path)?;
+    let private_key = crate::pem::read_private_key(private_key_path, private_key_password)?;
 
     let mut root_cert_store = RootCertStore::empty();
     for cert in root_certs {
