@@ -1,3 +1,5 @@
+use webpki::types::PrivateKeyDer;
+
 /// Error type used by the library that implements [`std::error::Error`]
 #[derive(Debug)]
 pub(crate) struct Error {
@@ -82,28 +84,51 @@ pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, 
 }
 
 /// Private key read from a plaintext or encrypted PEM file
-pub(crate) struct PrivateKey(Vec<u8>);
+pub(crate) struct PrivateKey(PrivateKeyDer<'static>);
 
 impl PrivateKey {
-    /// PEM tags that are supported for encrypted private keys
-    const ALLOWED_ENCRYPTED_KEY_TAGS: &'static [&'static str] = &["ENCRYPTED PRIVATE KEY"];
-    /// PEM tags that are supported for plain-text private keys
-    const ALLOWED_PLAINTEXT_KEY_TAGS: &'static [&'static str] = &["PRIVATE KEY", "RSA PRIVATE KEY"];
 
-    /// The underlying vector of bytes
-    pub(crate) fn into_inner(self) -> Vec<u8> {
+    const ENCRYPTED_PRIVATE_KEY: &'static str = "ENCRYPTED PRIVATE KEY";
+    const PRIVATE_KEY: &'static str = "PRIVATE KEY";
+    const RSA_PRIVATE_KEY: &'static str = "RSA PRIVATE KEY";
+
+    /// The underlying rustls type
+    pub(crate) fn into_inner(self) -> PrivateKeyDer<'static> {
         self.0
     }
 
     /// Try to read a private key from a PEM file that may also contain certificate data. This method
-    /// will extract plaintext private keys denoted by 'PRIVATE KEY' or 'BEGIN RSA PRIVATE KEY' (PKCS #1)
+    /// will extract plaintext private keys denoted by 'PRIVATE KEY' or 'RSA PRIVATE KEY' (PKCS #1)
     /// PEM sections.
     ///
     /// This method ensures that only 1 private key file is present in a possibly multi-section PEM file
     pub(crate) fn read_from_pem<B: AsRef<[u8]>>(bytes: B) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
-        let key = Self::find_only_content_with_tags(&sections, Self::ALLOWED_PLAINTEXT_KEY_TAGS)?;
-        Ok(Self(key.to_vec()))
+
+        let mut key: Option<Self> = None;
+
+        for section in sections {
+            match section.tag() {
+                Self::PRIVATE_KEY => {
+                    if key.is_some() {
+                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                    }
+                    key = Some(Self(PrivateKeyDer::Pkcs8(section.contents().to_vec().into())))
+                }
+                Self::RSA_PRIVATE_KEY => {
+                    if key.is_some() {
+                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                    }
+                    key = Some(Self(PrivateKeyDer::Pkcs1(section.contents().to_vec().into())))
+                }
+                _ => {}
+            }
+        }
+
+        match key.take() {
+            None => Err(ErrorDetails::NoPrivateKey.into()),
+            Some(k) => Ok(k)
+        }
     }
 
     /// Try to decrypt a private key from a PEM file. This method expects the PEM to contain a section
@@ -115,29 +140,30 @@ impl PrivateKey {
         password: S,
     ) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
-        let data = Self::find_only_content_with_tags(&sections, Self::ALLOWED_ENCRYPTED_KEY_TAGS)?;
-        let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(data)?;
-        let document = parsed.decrypt(password.as_ref())?;
-        Ok(Self(document.as_bytes().to_vec()))
-    }
 
-    // find the
-    fn find_only_content_with_tags<'a>(
-        sections: &'a [pem::Pem],
-        allowed_tags: &'static [&'static str],
-    ) -> Result<&'a [u8], Error> {
-        let mut iter = sections.iter();
-        let first = match iter.find(|x| allowed_tags.contains(&x.tag())) {
-            Some(x) => x,
-            None => return Err(ErrorDetails::NoPrivateKey.into()),
-        };
+        let mut key: Option<Vec<u8>> = None;
 
-        // make sure there are not other sections that match the allowed tags
-        if iter.any(|x| allowed_tags.contains(&x.tag())) {
-            return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+        for section in sections {
+            match section.tag() {
+                Self::ENCRYPTED_PRIVATE_KEY => {
+                    if key.is_some() {
+                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                    }
+                    key = Some(section.contents().to_vec())
+                }
+                _ => {}
+            }
         }
 
-        Ok(first.contents())
+        let encrypted = match key.take() {
+            None => return Err(ErrorDetails::NoPrivateKey.into()),
+            Some(key) => key,
+        };
+
+        let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(encrypted.as_slice())?;
+        let document = parsed.decrypt(password.as_ref())?;
+        let key = PrivateKeyDer::Pkcs8(document.to_bytes().to_vec().into());
+        Ok(Self(key))
     }
 }
 

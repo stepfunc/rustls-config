@@ -1,10 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 use rustls::client::danger::HandshakeSignatureValid;
-use rustls::client::ServerCertVerifierBuilder;
 use rustls::{DigitallySignedStruct, SignatureScheme};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use webpki::KeyUsage;
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime, TrustAnchor};
+
 
 use crate::name::NameVerifier;
 use crate::{Error, MinProtocolVersion};
@@ -53,15 +52,14 @@ pub fn authority(
 }
 
 fn build_config(
-    min_version: MinProtocolVersion,
-    local_certs: Vec<CertificateDer>,
-    private_key: rustls::pki_types::PrivateKeyDer,
+    _min_version: MinProtocolVersion,
+    local_certs: Vec<CertificateDer<'static>>,
+    private_key: rustls::pki_types::PrivateKeyDer<'static>,
     verifier: Arc<dyn rustls::client::danger::ServerCertVerifier>,
 ) -> Result<rustls::ClientConfig, rustls::Error> {
     let config = rustls::ClientConfig::builder()
-        .with_safe_default_cipher_suites()
-        .with_safe_default_kx_groups()
-        .with_protocol_versions(min_version.versions())?
+        //.with_protocol_versions(4) // TODO configure protocol versions?
+        .dangerous()
         .with_custom_certificate_verifier(verifier)
         .with_client_auth_cert(local_certs, private_key)?;
 
@@ -76,24 +74,22 @@ fn build_config(
 /// It can also verify the name in the server cert from the Common Name as well.
 #[derive(Debug)]
 struct ServerCertVerifier {
-    roots: Vec<OwnedTrustAnchor>,
+    roots: Vec<TrustAnchor<'static>>,
     name: NameVerifier,
 }
 
 impl ServerCertVerifier {
     /// Create the verifier from some root anchors and a name verifier
-    fn new(anchors: Vec<CertificateDer>, name: NameVerifier) -> Result<Self, rustls::Error> {
-        let roots = Self::trust_anchors(anchors).map_err(crate::pki_error)?;
-        Ok(Self { roots, name })
-    }
+    fn new(roots: Vec<CertificateDer<'static>>, name: NameVerifier) -> Result<Self, rustls::Error> {
+        let mut anchors = Vec::new();
 
-    fn trust_anchors(
-        certs: Vec<CertificateDer>,
-    ) -> Result<Vec<OwnedTrustAnchor>, webpki::Error> {
-        certs
-            .iter()
-            .map(|x| OwnedTrustAnchor::try_from_cert_der(x.as_ref()))
-            .collect()
+        for root in roots {
+            let anchor = webpki::anchor_from_trusted_cert(&root).map_err(crate::pki_error)?;
+            anchors.push(anchor.to_owned());
+        }
+
+        //let roots = Self::trust_anchors(anchors).map_err(crate::pki_error)?;
+        Ok(Self { roots: anchors, name })
     }
 }
 
@@ -144,6 +140,7 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
     }
 }
 
+/*
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -161,6 +158,9 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     &webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
+ */
+
+/*
 // TODO: if `rustls::OwnedTrustAnchor::to_trust_anchor` was public,
 // we wouldn't need to duplicate this.
 #[derive(Debug, Clone)]
@@ -172,11 +172,12 @@ struct OwnedTrustAnchor {
 
 impl OwnedTrustAnchor {
     /// Get a `webpki::TrustAnchor` by borrowing the owned elements.
-    fn to_trust_anchor(&self) -> webpki::TrustAnchor {
-        webpki::TrustAnchor {
+    fn to_trust_anchor(&self) -> rustls::pki_types::TrustAnchor {
+
+        rustls::pki_types::TrustAnchor {
             subject: &self.subject,
-            spki: &self.spki,
             name_constraints: self.name_constraints.as_deref(),
+            subject_public_key_info: &self.spki,
         }
     }
 
@@ -191,10 +192,11 @@ impl OwnedTrustAnchor {
     }
 }
 
+
 type CertChainAndRoots<'a, 'b> = (
     webpki::EndEntityCert<'a>,
     Vec<&'a [u8]>,
-    Vec<webpki::TrustAnchor<'b>>,
+    Vec<rustls::pki_types::TrustAnchor<'b>>,
 );
 
 fn prepare<'a, 'b>(
@@ -214,3 +216,4 @@ fn prepare<'a, 'b>(
 
     Ok((cert, intermediates, roots))
 }
+*/

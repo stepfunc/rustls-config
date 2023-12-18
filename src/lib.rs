@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![deny(
-dead_code,
+//dead_code,
 arithmetic_overflow,
 invalid_type_param_default,
 missing_fragment_specifier,
@@ -19,7 +19,6 @@ non_shorthand_field_patterns,
 non_snake_case,
 non_upper_case_globals,
 no_mangle_generic_items,
-private_in_public,
 stable_features,
 type_alias_bounds,
 tyvar_behind_raw_pointer,
@@ -55,6 +54,7 @@ mod error;
 mod name;
 
 use rustls::OtherError;
+use webpki::types::PrivateKeyDer;
 pub use error::*;
 pub use name::*;
 
@@ -99,13 +99,13 @@ pub(crate) fn pki_error(error: webpki::Error) -> rustls::Error {
     }
 }
 
-pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::pki_types::CertificateDer>, Error> {
+pub(crate) fn read_certificates(path: &std::path::Path) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, Error> {
     let bytes = std::fs::read(path)?;
     let certs = pem::read_certificates(bytes)?;
     Ok(certs.into_iter().map(|x| x.into()).collect())
 }
 
-pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::pki_types::CertificateDer, Error> {
+pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::pki_types::CertificateDer<'static>, Error> {
     let bytes = std::fs::read(path)?;
     let cert = pem::read_one_certificate(bytes)?;
     Ok(cert.into())
@@ -114,11 +114,12 @@ pub(crate) fn read_one_cert(path: &std::path::Path) -> Result<rustls::pki_types:
 pub(crate) fn read_private_key(
     path: &std::path::Path,
     password: Option<&str>,
-) -> Result<rustls::PrivateKey, Error> {
+) -> Result<PrivateKeyDer<'static>, Error> {
     let bytes = std::fs::read(path)?;
     let key = match password {
         Some(x) => pem::PrivateKey::decrypt_from_pem(bytes, x)?,
         None => pem::PrivateKey::read_from_pem(bytes)?,
     };
-    Ok(rustls::PrivateKey(key.into_inner()))
+
+    Ok(key.into_inner())
 }

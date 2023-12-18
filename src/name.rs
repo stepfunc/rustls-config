@@ -1,11 +1,11 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum VerifierType {
     Any,
     Strict(String),
 }
 
 /// Type that can be used to perform name verification on end-entity x.509 certificates
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NameVerifier {
     inner: VerifierType,
 }
