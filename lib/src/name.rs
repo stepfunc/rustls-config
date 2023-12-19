@@ -16,6 +16,8 @@ pub enum ServerNameVerification {
 pub enum ClientNameVerification {
     /// Don't perform any client name verification (which is the default for mTLS)
     None,
-    /// Check that client's name matches one of these server names
-    Verify(rustls::pki_types::ServerName<'static>),
+    /// Only verify the client's name from the SAN extension
+    SanExtOnly(rustls::pki_types::ServerName<'static>),
+    /// Prefer SAN-based verification, but try the common name if the SAN is absent
+    SanOrCommonName(rustls::pki_types::ServerName<'static>),
 }
