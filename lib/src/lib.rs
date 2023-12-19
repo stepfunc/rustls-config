@@ -13,5 +13,6 @@ pub use error::*;
 pub use name::*;
 pub use versions::*;
 
+pub(crate) mod common_name;
 pub(crate) mod pem;
 pub(crate) mod self_signed;

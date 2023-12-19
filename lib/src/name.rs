@@ -3,9 +3,11 @@
 /// Server names get passed in when connecting, so no name is present in this enum
 #[derive(Copy, Clone, Debug)]
 pub enum ServerNameVerification {
-    /// Perform name verification using standard WebPKI verifier
-    Verify,
-    /// Don't perform any name verification
+    /// Only verify the server's name from the SAN extension
+    SanExtOnly,
+    /// Prefer SAN-based verification, but try the common name if the SAN is absent
+    SanOrCommonName,
+    /// DANGER: Don't perform any name verification
     DisableNameVerification,
 }
 

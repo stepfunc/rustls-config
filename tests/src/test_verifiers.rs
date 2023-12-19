@@ -1,9 +1,9 @@
+use rustls::ServerConfig;
 use sfio_rustls_config::{ClientNameVerification, MinProtocolVersion, ServerNameVerification};
 use std::convert::TryInto;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use rustls::ServerConfig;
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
@@ -24,7 +24,6 @@ fn ca_subject_only_dir() -> PathBuf {
     certs_dir().join("authority").join("subject_cn_only")
 }
 
-
 async fn connect() -> (TcpStream, TcpStream) {
     fn local_host(port: u16) -> SocketAddr {
         SocketAddrV4::new(Ipv4Addr::LOCALHOST, port).into()
@@ -32,9 +31,7 @@ async fn connect() -> (TcpStream, TcpStream) {
 
     let listener = tokio::net::TcpListener::bind(local_host(0)).await.unwrap();
     let assigned_port = listener.local_addr().unwrap().port();
-    let client = TcpStream::connect(local_host(assigned_port))
-        .await
-        .unwrap();
+    let client = TcpStream::connect(local_host(assigned_port)).await.unwrap();
     let (server, _) = listener.accept().await.unwrap();
 
     (client, server)
@@ -47,12 +44,12 @@ fn get_self_signed_server_config() -> ServerConfig {
         &self_signed_dir().join("jim.crt"),
         &self_signed_dir().join("jim.key"),
         None,
-    ).unwrap()
+    )
+    .unwrap()
 }
 
 #[tokio::test]
 async fn self_signed_verifier_works() {
-
     let server_config = get_self_signed_server_config();
 
     // this config pairs with the server config, i.e. jim and bill want to talk
@@ -81,7 +78,6 @@ async fn self_signed_verifier_works() {
 
 #[tokio::test]
 async fn self_signed_verifier_rejects_wrong_cert() {
-
     let server_config = get_self_signed_server_config();
 
     // this client config conflicts with the server config
@@ -115,7 +111,7 @@ async fn can_verify_server_name_in_san_extension() {
         "server42",
         ca_san_dir(),
         ClientNameVerification::None,
-        ServerNameVerification::Verify,
+        ServerNameVerification::SanOrCommonName,
     )
     .await;
     client.expect("client connection failed");
@@ -128,7 +124,7 @@ async fn does_not_verify_server_name_in_common_name_when_san_is_present() {
         "myserver",
         ca_san_dir(),
         ClientNameVerification::None,
-        ServerNameVerification::Verify,
+        ServerNameVerification::SanOrCommonName,
     )
     .await;
     client.expect_err("client did NOT fail as expected");
@@ -141,13 +137,12 @@ async fn can_verify_server_name_in_common_name_when_san_is_absent() {
         "myserver",
         ca_subject_only_dir(),
         ClientNameVerification::None,
-        ServerNameVerification::Verify,
+        ServerNameVerification::SanOrCommonName,
     )
     .await;
     client.unwrap();
     server.unwrap();
 }
-
 
 type ClientHandshakeResult = std::io::Result<tokio_rustls::client::TlsStream<TcpStream>>;
 type ServerHandshakeResult = std::io::Result<tokio_rustls::server::TlsStream<TcpStream>>;
