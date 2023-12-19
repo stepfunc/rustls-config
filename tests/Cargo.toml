@@ -1,0 +1,17 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+sfio-rustls-config = { path = "../lib" }
+rustls = "0.22.1"
+tokio-rustls = "0.25.0"
+tokio = { version = "1.35.0", features = ["test-util", "net", "rt", "macros"] }
+
+[[test]]
+name = "test_verifiers"
+path = "src/test_verifiers.rs"
+
+

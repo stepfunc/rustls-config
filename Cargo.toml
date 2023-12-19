@@ -1,34 +1,7 @@
-[package]
-name = "sfio-rustls-config"
-version = "0.2.0"
-license = "MIT OR Apache-2.0"
-edition = "2021"
-description = "Configuration routines for Rustls used in libraries from Step Function I/O"
-repository = "https://github.com/stepfunc/rustls-config"
-readme = "README.md"
-authors = ["Step Function I/O LLC <info@stepfunc.io>"]
-rust-version = "1.74"
+[workspace]
+resolver = "2"
 
-[dependencies]
-pem = { version = "^3.0" }
-pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
-rx509 = "^0.2"
-rustls = { version = "^0.22.1"}
-rustls-webpki = { version = "^0.102" }
-
-[lints.rust]
-unsafe_code = "forbid"
-non_ascii_idents = "deny"
-unreachable_pub = "deny"
-trivial_casts = "deny"
-missing_docs = "deny"
-warnings = "deny"
-unused = "deny"
-unused_crate_dependencies = "deny"
-missing_copy_implementations = "deny"
-
-[lints.clippy]
-all = "deny"
-
-[lints.rustdoc]
-broken_intra_doc_links = "deny"
+members = [
+    "lib",
+    "tests",
+]

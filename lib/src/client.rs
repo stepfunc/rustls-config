@@ -33,17 +33,17 @@ pub fn self_signed(
 pub fn authority(
     min_version: MinProtocolVersion,
     name_verification: ServerNameVerification,
-    root_cert_path: &Path,
+    ca_cert_path: &Path,
     local_cert_path: &Path,
     private_key_path: &Path,
     private_key_password: Option<&str>,
 ) -> Result<rustls::ClientConfig, Error> {
-    let root_certs = crate::pem::read_certificates(root_cert_path)?;
+    let ca_certs = crate::pem::read_certificates(ca_cert_path)?;
     let cert_chain = crate::pem::read_certificates(local_cert_path)?;
     let private_key = crate::pem::read_private_key(private_key_path, private_key_password)?;
 
     let mut root_cert_store = RootCertStore::empty();
-    for cert in root_certs {
+    for cert in ca_certs {
         root_cert_store.add(cert)?;
     }
 
