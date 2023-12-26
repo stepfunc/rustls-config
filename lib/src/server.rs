@@ -8,11 +8,11 @@ use std::path::Path;
 use std::sync::Arc;
 use webpki::types::ServerName;
 
-use crate::{ClientNameVerification, Error, MinProtocolVersion};
+use crate::{ClientNameVerification, Error, ProtocolVersions};
 
 /// Create a client configuration based on a verifier that allows self-signed certificates
 pub fn self_signed(
-    min_version: MinProtocolVersion,
+    versions: ProtocolVersions,
     peer_cert_path: &Path,
     local_cert_path: &Path,
     private_key_path: &Path,
@@ -23,7 +23,7 @@ pub fn self_signed(
     let private_key = crate::pem::read_private_key(private_key_path, private_key_password)?;
     let verifier = crate::self_signed::SelfSignedVerifier::create(peer_cert)?;
 
-    let config = rustls::ServerConfig::builder_with_protocol_versions(min_version.versions())
+    let config = rustls::ServerConfig::builder_with_protocol_versions(versions.versions())
         .with_client_cert_verifier(Arc::new(verifier))
         .with_single_cert(vec![local_cert], private_key)?;
 
@@ -32,7 +32,7 @@ pub fn self_signed(
 
 /// Create a client configuration based on a chain verifier with custom name verification
 pub fn authority(
-    min_version: MinProtocolVersion,
+    versions: ProtocolVersions,
     name_verification: ClientNameVerification,
     ca_cert_path: &Path,
     local_cert_chain_path: &Path,
@@ -57,7 +57,7 @@ pub fn authority(
         verification: name_verification,
     };
 
-    let config = rustls::ServerConfig::builder_with_protocol_versions(min_version.versions())
+    let config = rustls::ServerConfig::builder_with_protocol_versions(versions.versions())
         .with_client_cert_verifier(Arc::new(verifier))
         .with_single_cert(local_cert_chain, private_key)?;
 
@@ -121,7 +121,7 @@ impl ClientCertVerifier for ClientNameVerifier {
             .base_verifier
             .verify_client_cert(end_entity, intermediates, now)?;
 
-        match &self.verification {
+        let res = match &self.verification {
             ClientNameVerification::None => {
                 // we're done
                 Ok(verified)
@@ -130,7 +130,11 @@ impl ClientCertVerifier for ClientNameVerifier {
             ClientNameVerification::SanOrCommonName(x) => {
                 self.verify_client_name(end_entity, x, true)
             }
-        }
+        };
+
+        println!("client result: {res:?}");
+
+        res
     }
 
     fn verify_tls12_signature(

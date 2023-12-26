@@ -1,5 +1,5 @@
 use rustls::ServerConfig;
-use sfio_rustls_config::{ClientNameVerification, MinProtocolVersion, ServerNameVerification};
+use sfio_rustls_config::{ClientNameVerification, ProtocolVersions, ServerNameVerification};
 use std::convert::TryInto;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ async fn connect() -> (TcpStream, TcpStream) {
 
 fn get_self_signed_server_config() -> ServerConfig {
     sfio_rustls_config::server::self_signed(
-        MinProtocolVersion::V1_3,
+        ProtocolVersions::v13_only(),
         &self_signed_dir().join("bill.crt"),
         &self_signed_dir().join("jim.crt"),
         &self_signed_dir().join("jim.key"),
@@ -54,7 +54,7 @@ async fn self_signed_verifier_works() {
 
     // this config pairs with the server config, i.e. jim and bill want to talk
     let client_config = sfio_rustls_config::client::self_signed(
-        MinProtocolVersion::V1_3,
+        ProtocolVersions::v13_only(),
         &self_signed_dir().join("jim.crt"),
         &self_signed_dir().join("bill.crt"),
         &self_signed_dir().join("bill.key"),
@@ -82,7 +82,7 @@ async fn self_signed_verifier_rejects_wrong_cert() {
 
     // this client config conflicts with the server config
     let client_config = sfio_rustls_config::client::self_signed(
-        MinProtocolVersion::V1_3,
+        ProtocolVersions::v13_only(),
         &self_signed_dir().join("ted.crt"),
         &self_signed_dir().join("bill.crt"),
         &self_signed_dir().join("bill.key"),
@@ -106,55 +106,97 @@ async fn self_signed_verifier_rejects_wrong_cert() {
 }
 
 #[tokio::test]
+async fn can_disable_server_name_verification_entirely() {
+    perform_ca_handshake(
+        "wrong_name",
+        ProtocolVersions::v13_only(),
+        ca_san_dir(),
+        ClientNameVerification::None,
+        ServerNameVerification::DisableNameVerification,
+    )
+    .await
+    .assert_success();
+}
+
+#[tokio::test]
 async fn can_verify_server_name_in_san_extension() {
-    let (client, server) = perform_ca_handshake(
+    perform_ca_handshake(
         "server42",
+        ProtocolVersions::v13_only(),
         ca_san_dir(),
         ClientNameVerification::None,
         ServerNameVerification::SanOrCommonName,
     )
-    .await;
-    client.expect("client connection failed");
-    server.expect("server connection failed");
+    .await
+    .assert_success();
 }
 
 #[tokio::test]
 async fn does_not_verify_server_name_in_common_name_when_san_is_present() {
-    let (client, server) = perform_ca_handshake(
+    perform_ca_handshake(
         "myserver",
+        ProtocolVersions::v13_only(),
         ca_san_dir(),
         ClientNameVerification::None,
         ServerNameVerification::SanOrCommonName,
     )
-    .await;
-    client.expect_err("client did NOT fail as expected");
-    server.expect_err("server did NOT fail as expected");
+    .await
+    .assert_failure()
 }
 
 #[tokio::test]
 async fn can_verify_server_name_in_common_name_when_san_is_absent() {
-    let (client, server) = perform_ca_handshake(
+    perform_ca_handshake(
         "myserver",
+        ProtocolVersions::v13_only(),
         ca_subject_only_dir(),
         ClientNameVerification::None,
         ServerNameVerification::SanOrCommonName,
     )
-    .await;
-    client.unwrap();
-    server.unwrap();
+    .await
+    .assert_success();
 }
 
-type ClientHandshakeResult = std::io::Result<tokio_rustls::client::TlsStream<TcpStream>>;
-type ServerHandshakeResult = std::io::Result<tokio_rustls::server::TlsStream<TcpStream>>;
+#[tokio::test]
+async fn rejects_wrong_client_name() {
+    perform_ca_handshake(
+        "whatever",
+        ProtocolVersions::v12_only(),
+        ca_subject_only_dir(),
+        ClientNameVerification::SanExtOnly("myclient".try_into().unwrap()),
+        ServerNameVerification::DisableNameVerification,
+    )
+    .await
+    .assert_failure();
+}
+
+#[must_use]
+struct HandshakeResult {
+    client: std::io::Result<tokio_rustls::client::TlsStream<TcpStream>>,
+    server: std::io::Result<tokio_rustls::server::TlsStream<TcpStream>>,
+}
+
+impl HandshakeResult {
+    fn assert_success(self) {
+        self.server.expect("server handshake failed");
+        self.client.expect("client handshake failed");
+    }
+
+    fn assert_failure(self) {
+        self.server.expect_err("server handshake did NOT fail");
+        self.client.expect_err("client handshake did NOT fail");
+    }
+}
 
 async fn perform_ca_handshake(
     name: &'static str,
+    versions: ProtocolVersions,
     path: PathBuf,
     client_name_verification: ClientNameVerification,
     server_name_verification: ServerNameVerification,
-) -> (ClientHandshakeResult, ServerHandshakeResult) {
+) -> HandshakeResult {
     let server_config = sfio_rustls_config::server::authority(
-        MinProtocolVersion::V1_3,
+        versions,
         client_name_verification,
         &path.join("ca.crt"),
         &path.join("server.crt"),
@@ -164,7 +206,7 @@ async fn perform_ca_handshake(
     .unwrap();
 
     let client_config = sfio_rustls_config::client::authority(
-        MinProtocolVersion::V1_3,
+        versions,
         server_name_verification,
         &path.join("ca.crt"),
         &path.join("client.crt"),
@@ -180,11 +222,10 @@ async fn perform_ca_handshake(
 
     let server_task = tokio::spawn(acceptor.accept(server));
 
-    // doesn't matter what this is b/c it won't be checked
     let name: ServerName = name.try_into().unwrap();
 
     let client = connector.connect(name, client).await;
     let server = server_task.await.unwrap();
 
-    (client, server)
+    HandshakeResult { client, server }
 }

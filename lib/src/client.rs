@@ -6,11 +6,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::name::ServerNameVerification;
-use crate::MinProtocolVersion;
+use crate::ProtocolVersions;
 
 /// Create a client configuration based on a verifier that allows self-signed certificates
 pub fn self_signed(
-    min_version: MinProtocolVersion,
+    versions: ProtocolVersions,
     peer_cert_path: &Path,
     local_cert_path: &Path,
     private_key_path: &Path,
@@ -21,7 +21,7 @@ pub fn self_signed(
     let private_key = crate::pem::read_private_key(private_key_path, private_key_password)?;
     let verifier = crate::self_signed::SelfSignedVerifier::create(peer_cert)?;
 
-    let config = rustls::ClientConfig::builder_with_protocol_versions(min_version.versions())
+    let config = rustls::ClientConfig::builder_with_protocol_versions(versions.versions())
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(verifier))
         .with_client_auth_cert(vec![client_cert], private_key)?;
@@ -31,7 +31,7 @@ pub fn self_signed(
 
 /// Create a client configuration based on a chain verifier with custom name verification
 pub fn authority(
-    min_version: MinProtocolVersion,
+    versions: ProtocolVersions,
     name_verification: ServerNameVerification,
     ca_cert_path: &Path,
     local_cert_path: &Path,
@@ -55,7 +55,7 @@ pub fn authority(
         mode: name_verification,
     };
 
-    let config = rustls::ClientConfig::builder_with_protocol_versions(min_version.versions())
+    let config = rustls::ClientConfig::builder_with_protocol_versions(versions.versions())
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(verifier))
         .with_client_auth_cert(cert_chain, private_key)?;
