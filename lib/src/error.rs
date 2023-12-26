@@ -1,3 +1,5 @@
+use rustls::client::VerifierBuilderError;
+
 /// Opaque error type used by the library that implements [`std::error::Error`].
 #[derive(Debug)]
 pub struct Error {
@@ -38,6 +40,14 @@ impl From<rustls::Error> for Error {
     }
 }
 
+impl From<VerifierBuilderError> for Error {
+    fn from(err: VerifierBuilderError) -> Self {
+        Self {
+            details: Details::BuilderError(err),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Details {
     /// Error reading PEM data from file
@@ -48,6 +58,8 @@ enum Details {
     X509(rx509::der::ASNError),
     /// Error returned by Rustls
     Tls(rustls::Error),
+    /// Error building a certificate verifier
+    BuilderError(VerifierBuilderError),
 }
 
 impl std::fmt::Display for Error {
@@ -57,6 +69,7 @@ impl std::fmt::Display for Error {
             Details::Pem(err) => write!(f, "PEM error: {err}"),
             Details::X509(err) => write!(f, "RX509 error: {err}"),
             Details::Tls(err) => write!(f, "Rustls error: {err}"),
+            Details::BuilderError(err) => write!(f, "Error building certificate verifier: {err}"),
         }
     }
 }

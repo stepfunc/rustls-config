@@ -1,3 +1,34 @@
+use webpki::types::PrivateKeyDer;
+
+pub(crate) fn read_certificates(
+    path: &std::path::Path,
+) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let certs = read_certificates_from_bytes(bytes)?;
+    Ok(certs.into_iter().map(|x| x.into()).collect())
+}
+
+pub(crate) fn read_one_cert(
+    path: &std::path::Path,
+) -> Result<rustls::pki_types::CertificateDer<'static>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let cert = read_one_certificate_from_bytes(bytes)?;
+    Ok(cert.into())
+}
+
+pub(crate) fn read_private_key(
+    path: &std::path::Path,
+    password: Option<&str>,
+) -> Result<PrivateKeyDer<'static>, crate::Error> {
+    let bytes = std::fs::read(path)?;
+    let key = match password {
+        Some(x) => PrivateKey::decrypt_from_pem(bytes, x)?,
+        None => PrivateKey::read_from_pem(bytes)?,
+    };
+
+    Ok(key.into_inner())
+}
+
 /// Error type used by the library that implements [`std::error::Error`]
 #[derive(Debug)]
 pub(crate) struct Error {
@@ -43,7 +74,7 @@ enum ErrorDetails {
 }
 
 /// Read at least 1 certificate from a PEM file
-pub(crate) fn read_certificates<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>, Error> {
+fn read_certificates_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>, Error> {
     let entries: Vec<pem::Pem> = pem::parse_many(bytes)?;
 
     let certs: Vec<Vec<u8>> = entries
@@ -66,8 +97,8 @@ pub(crate) fn read_certificates<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<Vec<u8>>
 
 /// Read a single certificate from the PEM file. If none or more than 1 is present, an error is
 /// returned
-pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, Error> {
-    let mut certs = read_certificates(bytes)?.into_iter();
+fn read_one_certificate_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, Error> {
+    let mut certs = read_certificates_from_bytes(bytes)?.into_iter();
 
     let first = match certs.next() {
         Some(x) => x,
@@ -82,62 +113,86 @@ pub(crate) fn read_one_certificate<B: AsRef<[u8]>>(bytes: B) -> Result<Vec<u8>, 
 }
 
 /// Private key read from a plaintext or encrypted PEM file
-pub(crate) struct PrivateKey(Vec<u8>);
+struct PrivateKey(PrivateKeyDer<'static>);
 
 impl PrivateKey {
-    /// PEM tags that are supported for encrypted private keys
-    const ALLOWED_ENCRYPTED_KEY_TAGS: &'static [&'static str] = &["ENCRYPTED PRIVATE KEY"];
-    /// PEM tags that are supported for plain-text private keys
-    const ALLOWED_PLAINTEXT_KEY_TAGS: &'static [&'static str] = &["PRIVATE KEY", "RSA PRIVATE KEY"];
+    const ENCRYPTED_PRIVATE_KEY: &'static str = "ENCRYPTED PRIVATE KEY";
+    const PRIVATE_KEY: &'static str = "PRIVATE KEY";
+    const RSA_PRIVATE_KEY: &'static str = "RSA PRIVATE KEY";
 
-    /// The underlying vector of bytes
-    pub(crate) fn into_inner(self) -> Vec<u8> {
+    /// The underlying rustls type
+    fn into_inner(self) -> PrivateKeyDer<'static> {
         self.0
     }
 
     /// Try to read a private key from a PEM file that may also contain certificate data. This method
-    /// will extract plaintext private keys denoted by 'PRIVATE KEY' or 'BEGIN RSA PRIVATE KEY' (PKCS #1)
+    /// will extract plaintext private keys denoted by 'PRIVATE KEY' or 'RSA PRIVATE KEY' (PKCS #1)
     /// PEM sections.
     ///
     /// This method ensures that only 1 private key file is present in a possibly multi-section PEM file
-    pub(crate) fn read_from_pem<B: AsRef<[u8]>>(bytes: B) -> Result<Self, Error> {
+    fn read_from_pem<B: AsRef<[u8]>>(bytes: B) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
-        let key = Self::find_only_content_with_tags(&sections, Self::ALLOWED_PLAINTEXT_KEY_TAGS)?;
-        Ok(Self(key.to_vec()))
+
+        let mut key: Option<Self> = None;
+
+        for section in sections {
+            match section.tag() {
+                Self::PRIVATE_KEY => {
+                    if key.is_some() {
+                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                    }
+                    key = Some(Self(PrivateKeyDer::Pkcs8(
+                        section.contents().to_vec().into(),
+                    )))
+                }
+                Self::RSA_PRIVATE_KEY => {
+                    if key.is_some() {
+                        return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                    }
+                    key = Some(Self(PrivateKeyDer::Pkcs1(
+                        section.contents().to_vec().into(),
+                    )))
+                }
+                _ => {}
+            }
+        }
+
+        match key.take() {
+            None => Err(ErrorDetails::NoPrivateKey.into()),
+            Some(k) => Ok(k),
+        }
     }
 
     /// Try to decrypt a private key from a PEM file. This method expects the PEM to contain a section
     /// with 'ENCRYPTED PRIVATE KEY' with a PKCS #8 encrypted private key.
     ///
     /// This method ensures that only 1 private key file is present in a possibly multi-section PEM file
-    pub(crate) fn decrypt_from_pem<B: AsRef<[u8]>, S: AsRef<[u8]>>(
+    fn decrypt_from_pem<B: AsRef<[u8]>, S: AsRef<[u8]>>(
         bytes: B,
         password: S,
     ) -> Result<Self, Error> {
         let sections = pem::parse_many(bytes)?;
-        let data = Self::find_only_content_with_tags(&sections, Self::ALLOWED_ENCRYPTED_KEY_TAGS)?;
-        let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(data)?;
-        let document = parsed.decrypt(password.as_ref())?;
-        Ok(Self(document.as_bytes().to_vec()))
-    }
 
-    // find the
-    fn find_only_content_with_tags<'a>(
-        sections: &'a [pem::Pem],
-        allowed_tags: &'static [&'static str],
-    ) -> Result<&'a [u8], Error> {
-        let mut iter = sections.iter();
-        let first = match iter.find(|x| allowed_tags.contains(&x.tag())) {
-            Some(x) => x,
-            None => return Err(ErrorDetails::NoPrivateKey.into()),
-        };
+        let mut encrypted: Option<Vec<u8>> = None;
 
-        // make sure there are not other sections that match the allowed tags
-        if iter.any(|x| allowed_tags.contains(&x.tag())) {
-            return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+        for section in sections {
+            if section.tag() == Self::ENCRYPTED_PRIVATE_KEY {
+                if encrypted.is_some() {
+                    return Err(ErrorDetails::MoreThanOnePrivateKey.into());
+                }
+                encrypted = Some(section.contents().to_vec())
+            }
         }
 
-        Ok(first.contents())
+        let encrypted = match encrypted.take() {
+            None => return Err(ErrorDetails::NoPrivateKey.into()),
+            Some(x) => x,
+        };
+
+        let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(encrypted.as_slice())?;
+        let document = parsed.decrypt(password.as_ref())?;
+        let key = PrivateKeyDer::Pkcs8(document.to_bytes().to_vec().into());
+        Ok(Self(key))
     }
 }
 
@@ -166,6 +221,7 @@ impl From<ErrorDetails> for Error {
 #[cfg(test)]
 mod test {
     use super::PrivateKey;
+    use rustls::pki_types::PrivateKeyDer;
 
     const TEST_KEY: &str = r#"
 -----BEGIN ENCRYPTED PRIVATE KEY-----
@@ -263,11 +319,12 @@ cr+jfC1zzDLXwxa69QcwOcFGkxtsl9QPToviY4+5PcjU5+ioaA7Hw14=
         let key = PrivateKey::decrypt_from_pem(TEST_KEY, "foobar").unwrap();
 
         let decrypted = pem::parse(DECYPTED_KEY).unwrap();
-        assert_eq!(key.into_inner().as_slice(), decrypted.contents());
+        assert_eq!(key.into_inner().secret_der(), decrypted.contents());
     }
 
     #[test]
     fn can_read_pkcs1_key() {
-        PrivateKey::read_from_pem(RSA_PRIVATE_KEY).unwrap();
+        let key = PrivateKey::read_from_pem(RSA_PRIVATE_KEY).unwrap();
+        assert!(std::matches!(key.into_inner(), PrivateKeyDer::Pkcs1(_)));
     }
 }
