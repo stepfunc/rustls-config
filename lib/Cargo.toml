@@ -5,7 +5,7 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "Configuration routines for Rustls used in libraries from Step Function I/O"
 repository = "https://github.com/stepfunc/rustls-config"
-readme = "../README.md"
+readme = "README.md"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 rust-version = "1.74"
 
