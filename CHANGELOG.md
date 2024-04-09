@@ -1,3 +1,6 @@
+# 0.3.1
+* :wrench: Remove dependency on `ring`.
+
 # 0.3.0
 * :wrench: Upgrade to rustls 0.23 which uses `aws-lc` instead of `ring`.
 
