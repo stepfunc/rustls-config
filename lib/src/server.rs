@@ -4,9 +4,9 @@ use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 use rustls::server::WebPkiClientVerifier;
 use rustls::Error::General;
 use rustls::{CertificateError, DigitallySignedStruct, DistinguishedName, SignatureScheme};
+use rustls_pki_types::ServerName;
 use std::path::Path;
 use std::sync::Arc;
-use webpki::types::ServerName;
 
 use crate::{ClientNameVerification, Error, ProtocolVersions};
 
@@ -83,7 +83,7 @@ impl ClientNameVerifier {
 
         match end_entity_cert.verify_is_valid_for_subject_name(name) {
             Ok(()) => Ok(ClientCertVerified::assertion()),
-            Err(webpki::Error::CertNotValidForName) => {
+            Err(webpki::Error::CertNotValidForName(_)) => {
                 if use_common_name {
                     crate::common_name::verify_name_from_subject(cert, name)?;
                     Ok(ClientCertVerified::assertion())

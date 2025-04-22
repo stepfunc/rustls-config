@@ -1,4 +1,4 @@
-use webpki::types::PrivateKeyDer;
+use rustls_pki_types::PrivateKeyDer;
 
 pub(crate) fn read_certificates(
     path: &std::path::Path,

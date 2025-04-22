@@ -1,5 +1,5 @@
 use rustls::{CertificateError, Error};
-use webpki::types::{CertificateDer, ServerName};
+use rustls_pki_types::{CertificateDer, ServerName};
 
 pub(crate) fn verify_name_from_subject(
     end_entity: &CertificateDer,
