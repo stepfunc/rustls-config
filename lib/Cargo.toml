@@ -1,6 +1,6 @@
 [package]
 name = "sfio-rustls-config"
-version = "0.3.2"
+version = "0.4.0"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "Configuration routines for Rustls used in libraries from Step Function I/O"
