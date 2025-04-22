@@ -13,8 +13,8 @@ rust-version = "1.74"
 pem = { version = "^3.0" }
 pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
 rx509 = "^0.2"
-rustls = { version = "0.23", default-features = false, features = ["std", "logging", "tls12", "ring"] }
-rustls-webpki = { version = "0.102", default-features = false, features = ["std", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "logging", "tls12", "aws-lc-rs"] }
+rustls-webpki = { version = "0.102.8", default-features = false, features = ["std", "aws_lc_rs"] }
 
 [lints.rust]
 unsafe_code = "forbid"
