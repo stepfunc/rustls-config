@@ -1,4 +1,3 @@
-use rustls::ServerConfig;
 use sfio_rustls_config::{ClientNameVerification, ProtocolVersions, ServerNameVerification};
 use std::convert::TryInto;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -6,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::ServerConfig;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
 fn certs_dir() -> PathBuf {

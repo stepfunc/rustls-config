@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-[dev-dependencies]
-sfio-rustls-config = { path = "../lib" }
-rustls = "0.23"
-tokio-rustls = "0.26.0"
+[dependencies]
+sfio-rustls-config = { path = "../lib", default-features = false, features = ["crypto-ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 tokio = { version = "1.35.0", features = ["test-util", "net", "rt", "macros"] }
 
 [[test]]
