@@ -71,12 +71,6 @@ impl SelfSignedVerifier {
     }
 }
 
-#[cfg(feature = "crypto-ring")]
-use rustls::crypto::ring::default_provider as default_crypto_provider;
-
-#[cfg(feature = "crypto-aws-lc-rs")]
-use rustls::crypto::aws_lc_rs::default_provider as default_crypto_provider;
-
 impl rustls::server::danger::ClientCertVerifier for SelfSignedVerifier {
     fn root_hint_subjects(&self) -> &[DistinguishedName] {
         self.subjects.as_slice()
@@ -102,7 +96,7 @@ impl rustls::server::danger::ClientCertVerifier for SelfSignedVerifier {
             message,
             cert,
             dss,
-            &default_crypto_provider().signature_verification_algorithms,
+            &crate::default_crypto_provider().signature_verification_algorithms,
         )
     }
 
@@ -116,12 +110,12 @@ impl rustls::server::danger::ClientCertVerifier for SelfSignedVerifier {
             message,
             cert,
             dss,
-            &default_crypto_provider().signature_verification_algorithms,
+            &crate::default_crypto_provider().signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        default_crypto_provider()
+        crate::default_crypto_provider()
             .signature_verification_algorithms
             .supported_schemes()
     }
@@ -150,7 +144,7 @@ impl rustls::client::danger::ServerCertVerifier for SelfSignedVerifier {
             message,
             cert,
             dss,
-            &default_crypto_provider().signature_verification_algorithms,
+            &crate::default_crypto_provider().signature_verification_algorithms,
         )
     }
 
@@ -164,12 +158,12 @@ impl rustls::client::danger::ServerCertVerifier for SelfSignedVerifier {
             message,
             cert,
             dss,
-            &default_crypto_provider().signature_verification_algorithms,
+            &crate::default_crypto_provider().signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        default_crypto_provider()
+        crate::default_crypto_provider()
             .signature_verification_algorithms
             .supported_schemes()
     }
