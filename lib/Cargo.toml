@@ -18,9 +18,9 @@ rustls-pki-types =  { version = "1.11.0" }
 rustls-webpki = { version = "0.103.1", default-features = false, features = ["std"] }
 
 [features]
-default = ["crypto-ring"]
+default = []
 crypto-ring = ["rustls/ring", "rustls-webpki/ring"]
-crypto-aws-lc-rs = ["rustls/aws-lc-rs", "rustls-webpki/aws-lc-rs"]
+crypto-aws-lc-rs = ["rustls/aws_lc_rs", "rustls-webpki/aws-lc-rs"]
 
 [lints.rust]
 unsafe_code = "forbid"
