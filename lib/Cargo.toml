@@ -1,6 +1,6 @@
 [package]
 name = "sfio-rustls-config"
-version = "0.3.2"
+version = "0.4.0"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "Configuration routines for Rustls used in libraries from Step Function I/O"
@@ -13,8 +13,14 @@ rust-version = "1.74"
 pem = { version = "^3.0" }
 pkcs8 = { version = "0.10.2", features = ["encryption", "pkcs5", "pem", "std"] }
 rx509 = "^0.2"
-rustls = { version = "0.23", default-features = false, features = ["std", "logging", "tls12", "ring"] }
-rustls-webpki = { version = "0.102", default-features = false, features = ["std", "ring"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "logging", "tls12"] }
+rustls-pki-types =  { version = "1.11.0" }
+rustls-webpki = { version = "0.103.1", default-features = false, features = ["std"] }
+
+[features]
+default = []
+crypto-ring = ["rustls/ring", "rustls-webpki/ring"]
+crypto-aws-lc-rs = ["rustls/aws_lc_rs", "rustls-webpki/aws-lc-rs"]
 
 [lints.rust]
 unsafe_code = "forbid"

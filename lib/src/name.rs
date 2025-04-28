@@ -5,7 +5,7 @@
 pub enum ServerNameVerification {
     /// Only verify the server's name from the SAN extension
     SanExtOnly,
-    /// Prefer SAN-based verification, but try the common name if the SAN is absent
+    /// Prefer SAN-based verification but try the common name if the SAN is absent
     SanOrCommonName,
     /// DANGER: Don't perform any name verification
     DisableNameVerification,
@@ -18,6 +18,6 @@ pub enum ClientNameVerification {
     None,
     /// Only verify the client's name from the SAN extension
     SanExtOnly(rustls::pki_types::ServerName<'static>),
-    /// Prefer SAN-based verification, but try the common name if the SAN is absent
+    /// Prefer SAN-based verification but try the common name if the SAN is absent
     SanOrCommonName(rustls::pki_types::ServerName<'static>),
 }

@@ -86,19 +86,22 @@ impl ServerCertVerifier for ModifiedNameVerifier {
             now,
         );
 
-        // Name verification is the LAST step inside WebPkiServerVerifier so we can safely trap it if it fails
-        if let Err(Error::InvalidCertificate(CertificateError::NotValidForName)) = res {
-            match self.mode {
-                ServerNameVerification::SanExtOnly => {}
-                ServerNameVerification::SanOrCommonName => {
-                    // we have to re-parse w/ rx509 to get the common name
-                    crate::common_name::verify_name_from_subject(end_entity, server_name)?;
-                    return Ok(ServerCertVerified::assertion());
-                }
-                ServerNameVerification::DisableNameVerification => {
-                    return Ok(ServerCertVerified::assertion())
+        match res {
+            Err(Error::InvalidCertificate(CertificateError::NotValidForName))
+            | Err(Error::InvalidCertificate(CertificateError::NotValidForNameContext { .. })) => {
+                match self.mode {
+                    ServerNameVerification::SanExtOnly => {}
+                    ServerNameVerification::SanOrCommonName => {
+                        // we have to reparse w/ rx509 to get the common name
+                        crate::common_name::verify_name_from_subject(end_entity, server_name)?;
+                        return Ok(ServerCertVerified::assertion());
+                    }
+                    ServerNameVerification::DisableNameVerification => {
+                        return Ok(ServerCertVerified::assertion())
+                    }
                 }
             }
+            _ => {}
         }
 
         res
