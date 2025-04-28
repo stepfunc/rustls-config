@@ -1,6 +1,9 @@
+# 0.4.0
+* :wrench: Make `ring` or `aws-lc-rs` configurable via features
+
 # 0.3.2
 * :wrench: Switch back to `ring` because of build complications on embedded platforms.
-* 
+
 # 0.3.1
 * :wrench: Remove dependency on `ring`.
 
