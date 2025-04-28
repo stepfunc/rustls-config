@@ -20,7 +20,7 @@ rustls-webpki = { version = "0.103.1", default-features = false, features = ["st
 [features]
 default = []
 crypto-ring = ["rustls/ring", "rustls-webpki/ring"]
-crypto-aws-lc-rs = ["rustls/aws_lc_rs", "rustls-webpki/aws-lc-rs"]
+crypto-aws-lc = ["rustls/aws_lc_rs", "rustls-webpki/aws-lc-rs"]
 
 [lints.rust]
 unsafe_code = "forbid"
