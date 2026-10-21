@@ -1,3 +1,6 @@
+# 0.4.1
+* :bug: Remove a debug `println!` that wrote the client certificate verification result to stdout on every handshake of a server using authority-based client verification.
+
 # 0.4.0
 * :wrench: Make `ring` or `aws-lc-rs` configurable via features
 

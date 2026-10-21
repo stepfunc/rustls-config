@@ -121,7 +121,7 @@ impl ClientCertVerifier for ClientNameVerifier {
             .base_verifier
             .verify_client_cert(end_entity, intermediates, now)?;
 
-        let res = match &self.verification {
+        match &self.verification {
             ClientNameVerification::None => {
                 // we're done
                 Ok(verified)
@@ -130,11 +130,7 @@ impl ClientCertVerifier for ClientNameVerifier {
             ClientNameVerification::SanOrCommonName(x) => {
                 self.verify_client_name(end_entity, x, true)
             }
-        };
-
-        println!("client result: {res:?}");
-
-        res
+        }
     }
 
     fn verify_tls12_signature(
