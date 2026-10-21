@@ -1,0 +1,68 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  # Format, lint and test the library with each crypto provider
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [crypto-ring, crypto-aws-lc]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy -p sfio-rustls-config --all-targets --features ${{ matrix.provider }} -- -D warnings
+      - name: Test
+        run: cargo test -p sfio-rustls-config --features ${{ matrix.provider }}
+  # The verifier tests in the tests crate, which use aws-lc
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Clippy
+        run: cargo clippy -p tests --all-targets -- -D warnings
+      - name: Test
+        run: cargo test -p tests
+  # Build with the rust-version declared in lib/Cargo.toml
+  msrv:
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [crypto-ring, crypto-aws-lc]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@1.85
+      - name: Check
+        run: cargo check -p sfio-rustls-config --features ${{ matrix.provider }}
+  # Fail on any advisory against the dependencies
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit
+        run: cargo generate-lockfile && cargo audit

@@ -1,0 +1,36 @@
+name: Release
+# Pushing a tag equal to the crate version (e.g. 0.4.1) publishes it to crates.io using trusted
+# publishing: crates.io trusts this workflow, so no API token is stored in the repository
+on:
+  push:
+    tags: ["*"]
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check the tag matches the crate version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "sfio-rustls-config") | .version')
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME doesn't match the crate version $version"
+            exit 1
+          fi
+      - name: Test
+        run: cargo test -p sfio-rustls-config --features crypto-ring
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish
+        run: cargo publish -p sfio-rustls-config --features crypto-ring
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
