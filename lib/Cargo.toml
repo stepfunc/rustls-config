@@ -1,13 +1,13 @@
 [package]
 name = "sfio-rustls-config"
-version = "0.4.0"
+version = "0.4.1"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 description = "Configuration routines for Rustls used in libraries from Step Function I/O"
 repository = "https://github.com/stepfunc/rustls-config"
 readme = "README.md"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
-rust-version = "1.74"
+rust-version = "1.85"
 
 [dependencies]
 pem = { version = "^3.0" }
@@ -16,6 +16,10 @@ rx509 = "^0.2"
 rustls = { version = "0.23", default-features = false, features = ["std", "logging", "tls12"] }
 rustls-pki-types =  { version = "1.11.0" }
 rustls-webpki = { version = "0.103.1", default-features = false, features = ["std"] }
+
+[package.metadata.docs.rs]
+# the crate requires exactly one crypto provider
+features = ["crypto-ring"]
 
 [features]
 default = []
@@ -34,7 +38,18 @@ unused_crate_dependencies = "deny"
 missing_copy_implementations = "deny"
 
 [lints.clippy]
-all = "deny"
+all = { level = "deny", priority = -1 }
+# no output except through the caller, and no panics in library code; clippy.toml allows
+# unwrap, expect, panic and indexing in tests
+print_stdout = "deny"
+print_stderr = "deny"
+dbg_macro = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"
+as_conversions = "deny"
 
 [lints.rustdoc]
 broken_intra_doc_links = "deny"
