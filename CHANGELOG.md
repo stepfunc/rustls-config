@@ -2,6 +2,7 @@
 * :bug: Remove a debug `println!` that wrote the client certificate verification result to stdout on every handshake of a server using authority-based client verification.
 * :wrench: Set `rust-version` to 1.85, the minimum the current dependencies require.
 * :wrench: Build the docs.rs documentation with the `crypto-ring` provider, since the crate requires one.
+* :wrench: Run CI on every change, and publish releases from CI with crates.io trusted publishing.
 
 # 0.4.0
 * :wrench: Make `ring` or `aws-lc-rs` configurable via features
