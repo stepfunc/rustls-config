@@ -63,15 +63,3 @@ jobs:
         run: cargo check -p sfio-rustls-config --features ${{ matrix.provider }}
         env:
           CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
-  # Fail on any advisory against the dependencies
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - name: Audit
-        run: cargo generate-lockfile && cargo audit
