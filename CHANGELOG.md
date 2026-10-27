@@ -1,3 +1,7 @@
+# 0.4.2
+* :shield: Update `pkcs8` to 0.11, so `block-buffer` 0.10, which scanners flag for [GHSA-qwgh-2vcv-g2f7](https://github.com/advisories/GHSA-qwgh-2vcv-g2f7), is replaced by 0.12.1. Earlier versions aren't affected: the advisory's inline cursor doesn't exist in 0.10, and the crate uses it only to decrypt a password-protected private key file.
+* :wrench: Rust 1.85 is still the minimum, but the newest versions of some dependencies need a later compiler. Cargo's MSRV-aware resolver (`resolver.incompatible-rust-versions = "fallback"`) picks versions that support 1.85.
+
 # 0.4.1
 * :bug: Remove a debug `println!` that wrote the client certificate verification result to stdout on every handshake of a server using authority-based client verification.
 * :wrench: Set `rust-version` to 1.85, the minimum the current dependencies require.

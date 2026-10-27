@@ -58,8 +58,11 @@ jobs:
         uses: actions/checkout@v6
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@1.85
+      # there's no lockfile, so pick the newest dependency versions that support the rust-version
       - name: Check
         run: cargo check -p sfio-rustls-config --features ${{ matrix.provider }}
+        env:
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
   # Fail on any advisory against the dependencies
   audit:
     runs-on: ubuntu-latest
