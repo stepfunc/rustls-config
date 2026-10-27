@@ -223,6 +223,7 @@ mod test {
     use super::PrivateKey;
     use rustls::pki_types::PrivateKeyDer;
 
+    // PBES2 with scrypt and AES-256-CBC
     const TEST_KEY: &str = r#"
 -----BEGIN ENCRYPTED PRIVATE KEY-----
 MIIFJTBPBgkqhkiG9w0BBQ0wQjAhBgkrBgEEAdpHBAswFAQIu0Ufk06Ty+ICAkAA
@@ -314,11 +315,37 @@ zMeBzj4b4shWrRaiOKoQop5QXWazx4Ma14PehEK8WXgqlHvaD6FMZF432DlpiApC
 cr+jfC1zzDLXwxa69QcwOcFGkxtsl9QPToviY4+5PcjU5+ioaA7Hw14=
 -----END RSA PRIVATE KEY-----"#;
 
+    // PBES2 with PBKDF2 (HMAC-SHA256) and AES-256-CBC
+    const PBKDF2_TEST_KEY: &str = r#"
+-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIH0MF8GCSqGSIb3DQEFDTBSMDEGCSqGSIb3DQEFDDAkBBC6Frp0xHoSHhk6wvGi
+F/9xAgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQLmBknR96e7s53ayA
+BiIklQSBkAvRTDcNRTnLI5SSB6n74W7f2PS/0WNxmn5YDUpkvl0PzPC+UNCL1HNM
+GThI4tPZiD5YPvGNVbwIQ/wKFMu10NA7ZybJfw5co7z3hHrLa23P4KQZXI5jymdH
+8aBtQh2fv5Opob7exI5ZtEu439wJVYFMe15tDSwX/Uoq43OidZdF3qrTjkFWZzv7
+RAzz5MFDjw==
+-----END ENCRYPTED PRIVATE KEY-----"#;
+
+    const PBKDF2_DECRYPTED_KEY: &str = r#"
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQge/LHy5tkqlvtdgMy
+mFBSvV27TC8xyA7biqUfhH7XPKehRANCAAQEKrgmUMmdMTw756XW4zefh7LZS9Of
+VXh8HuSqV9S2vRuB76VWBR7b6wh2uYSbMKKoYpPb5uhwROTbX81XUy64
+-----END PRIVATE KEY-----"#;
+
     #[test]
     fn can_decrypt_pkcs8_key() {
         let key = PrivateKey::decrypt_from_pem(TEST_KEY, "foobar").unwrap();
 
         let decrypted = pem::parse(DECYPTED_KEY).unwrap();
+        assert_eq!(key.into_inner().secret_der(), decrypted.contents());
+    }
+
+    #[test]
+    fn can_decrypt_pbkdf2_pkcs8_key() {
+        let key = PrivateKey::decrypt_from_pem(PBKDF2_TEST_KEY, "foobar").unwrap();
+
+        let decrypted = pem::parse(PBKDF2_DECRYPTED_KEY).unwrap();
         assert_eq!(key.into_inner().secret_der(), decrypted.contents());
     }
 
