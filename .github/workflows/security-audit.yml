@@ -1,0 +1,138 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC. This is the trigger doing the real work: findings
+    # change when an advisory is published, not when we push code.
+    - cron: '0 2 * * *'
+  # Allow manual trigger for testing
+  workflow_dispatch:
+  # Run on push to main so a newly introduced dependency is audited against the
+  # advisory database as of the merge, not as of whenever the PR last ran.
+  push:
+    branches:
+      - main
+    paths:
+      - '**/Cargo.toml'
+      - '.github/workflows/security-audit.yml'
+  # Run on every PR, unfiltered: audit and osv-scanner are required checks, and a
+  # path-filtered workflow reports no status at all.
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # The lockfile isn't committed, so audit the newest versions, the ones users resolve
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
+
+      - name: Install cargo-audit binary (fast)
+        run: cargo binstall cargo-audit@0.22.1 --no-confirm
+
+      # Run cargo-audit exactly once. The exit status alone can't distinguish
+      # "vulnerabilities found" from "the tool or advisory DB fetch failed", so
+      # the verdict comes from parsing the JSON report instead. Unparseable
+      # output means the run itself failed and is reported as such.
+      - name: Run security audit
+        id: audit
+        run: |
+          set +e
+          cargo audit --json > audit.json 2> audit.err
+          status=$?
+          set -e
+
+          # Diagnostics and warnings go to stderr even in JSON mode
+          cat audit.err
+
+          if ! jq -e . audit.json > /dev/null 2>&1; then
+            echo "::error::cargo audit failed to produce a report (exit ${status}); this is a tool or network failure, not a vulnerability finding"
+            exit 1
+          fi
+
+          # Warnings (unmaintained, yanked, unsound) don't fail the build, but
+          # cargo-audit prints nothing at all in JSON mode, so surface them here.
+          jq -r '.warnings | to_entries[] | .key as $kind | .value[]
+                 | "::warning::\($kind): \(.advisory.id) \(.package.name) \(.package.version)"' audit.json
+
+          count=$(jq -r '.vulnerabilities.count // 0' audit.json)
+          if [ "${count}" -gt 0 ]; then
+            jq -r '.vulnerabilities.list[]
+                   | "\(.advisory.id) \(.package.name) \(.package.version): \(.advisory.title)"' audit.json
+            echo "::error::cargo audit found ${count} vulnerable dependencies"
+            exit 1
+          fi
+          echo "No vulnerable dependencies found."
+
+      - name: Upload audit report
+        if: always() && hashFiles('audit.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: audit-report
+          path: |
+            audit.json
+            audit.err
+
+  # cargo-audit only reads the RustSec database. OSV also includes GitHub security advisories
+  # that crate maintainers publish on their repositories, which do not always reach RustSec
+  # (e.g. GHSA-qwgh-2vcv-g2f7 in block-buffer).
+  osv-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # The lockfile isn't committed, so scan the newest versions, the ones users resolve
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+
+      # Same approach as the audit job: run once, take the verdict from the JSON report, and
+      # report a run that produced no valid report as a tool failure, not a finding.
+      - name: Run OSV-Scanner on Cargo.lock
+        run: |
+          set +e
+          docker run --rm -v "$PWD:/src" \
+            ghcr.io/google/osv-scanner:v2.6.0@sha256:afd838850ac1a0fcc15ff4a041dc9ba11123c3f0d2666217a5f0fcf9222b55fa \
+            scan source --format json -L /src/Cargo.lock > osv.json 2> osv.err
+          status=$?
+          set -e
+          cat osv.err
+
+          # exit 0: nothing found, 1: vulnerabilities found, anything else: the run failed
+          if [ "${status}" -gt 1 ] || ! jq -e . osv.json > /dev/null 2>&1; then
+            echo "::error::osv-scanner failed to produce a report (exit ${status}); this is a tool or network failure, not a vulnerability finding"
+            exit 1
+          fi
+
+          findings=$(jq -r '.results[]?.packages[]?
+                            | "\(.package.name) \(.package.version): \([.vulnerabilities[]?.id] | join(", "))"' osv.json)
+          if [ -n "${findings}" ]; then
+            echo "${findings}"
+            echo "::error::OSV-Scanner found vulnerable dependencies"
+            exit 1
+          fi
+          echo "No vulnerable dependencies found."
+
+      - name: Upload OSV report
+        if: always() && hashFiles('osv.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: osv-report
+          path: |
+            osv.json
+            osv.err
