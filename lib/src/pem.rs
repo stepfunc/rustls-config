@@ -189,7 +189,7 @@ impl PrivateKey {
             Some(x) => x,
         };
 
-        let parsed = pkcs8::EncryptedPrivateKeyInfo::try_from(encrypted.as_slice())?;
+        let parsed = pkcs8::EncryptedPrivateKeyInfoRef::try_from(encrypted.as_slice())?;
         let document = parsed.decrypt(password.as_ref())?;
         let key = PrivateKeyDer::Pkcs8(document.to_bytes().to_vec().into());
         Ok(Self(key))
